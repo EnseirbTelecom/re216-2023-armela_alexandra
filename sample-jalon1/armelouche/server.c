@@ -9,16 +9,22 @@
 
 #include "common.h"
 
+#define MSG_LEN 1024
+
 void echo_server(int sockfd) {
 	char buff[MSG_LEN];
+	
 	while (1) {
+		
 		// Cleaning memory
 		memset(buff, 0, MSG_LEN);
-		// Receiving message
+		
+		// Receiving message du client 
 		if (recv(sockfd, buff, MSG_LEN, 0) <= 0) {
 			break;
 		}
 		printf("Received: %s", buff);
+		
 		// Sending message (ECHO)
 		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
 			break;
@@ -27,14 +33,14 @@ void echo_server(int sockfd) {
 	}
 }
 
-int handle_bind() {
+int handle_bind(const char *server_port) {
 	struct addrinfo hints, *result, *rp;
 	int sfd;
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	if (getaddrinfo(NULL, SERV_PORT, &hints, &result) != 0) {
+	if (getaddrinfo(NULL, server_port, &hints, &result) != 0) {
 		perror("getaddrinfo()");
 		exit(EXIT_FAILURE);
 	}
@@ -57,11 +63,19 @@ int handle_bind() {
 	return sfd;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+	
+	if (argc != 2) {
+        printf("Arguments non valides!\n");
+    }
+
+	const char *server_port = argv[1];
+
+    
 	struct sockaddr cli;
 	int sfd, connfd;
 	socklen_t len;
-	sfd = handle_bind();
+	sfd = handle_bind(server_port);
 	if ((listen(sfd, SOMAXCONN)) != 0) {
 		perror("listen()\n");
 		exit(EXIT_FAILURE);
