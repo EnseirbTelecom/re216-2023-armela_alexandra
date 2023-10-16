@@ -6,90 +6,147 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include "common.h"
 
-//envoyer des messages au serveur et recevoir des réponses du serveur en bpucle continue 
+#define MAX_EVENTS 2
 
-//sockfd : descripyeur de socket vers le serveur auquel le client est connecté 
+// MAX_EVENTS 2 : 
+
 void echo_client(int sockfd) {
-	
-	char buff[MSG_LEN];
-	int n;
-	while (1) {
-		
-		// Cleaning memory
-		memset(buff, 0, MSG_LEN);
-		
-		// lire le message de l'utilisateur depuis la console
-		printf("Message: ");
-		n = 0;
-		
-		// lire les carcatères saisis par l'utilisateur: les caractères sont sockés dans buff
-		while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
-		
-		// Sending message (ECHO) : envoi le contenu du buff ua serveur
-		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
-			break;
-		}
-		printf("Message sent!\n");
-		
-		// Cleaning memory: pour le préparer à la reception d'une réponse
-		memset(buff, 0, MSG_LEN);
-		
-		// Receiving message : attend la réponse où que la connexion avec les erveur soit fait
-		if (recv(sockfd, buff, MSG_LEN, 0) <= 0) {
-			break;
-		}
-		printf("Received: %s", buff);
-	}
+    char buff[MSG_LEN];
+    int n;
+    // Initialisation de poll
+    struct pollfd fds[MAX_EVENTS];
+    memset(fds, 0, MAX_EVENTS * sizeof(struct pollfd));
+
+    //socket d'écoute : clavier 
+    fds[0].fd = STDIN_FILENO; 
+    fds[0].events = POLLIN;
+    fds[0].revents = 0;
+
+    //Socket d'écoute pour les messages : connection 
+    fds[1].fd = sockfd; 
+    fds[1].events = POLLIN;
+    fds[1].revents = 0;
+
+
+    while (1) {
+        printf("Message: \n");
+
+
+        int active_poll = poll(fds, MAX_EVENTS, -1);
+
+        if (active_poll < 0) {
+            perror("poll");
+            exit(EXIT_FAILURE);
+        }
+        
+        for(int i=0; i<MAX_EVENTS; i++){
+        if (fds[i].revents & (POLLIN | POLLHUP)){
+        
+            
+        // If there is data available from the keyboard (stdin).
+        if (fds[i].fd == STDIN_FILENO) {
+            memset(buff, 0, MSG_LEN);
+            n = 0;
+            while ((buff[n++] = getchar()) != '\n') {}
+
+            // Send the message to the server.
+            if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+                perror("send");
+                close(sockfd);
+            }
+            printf("Message sent: %s\n", buff);
+            
+            // Cleaning memory
+					memset(buff, 0, MSG_LEN);
+
+                    fds[i].events = POLLIN;
+                    //tjs remettre le revents à 0 
+					fds[i].revents = 0;
+
+        }
+
+        // If data is available from the server.
+        else if (fds[i].fd == sockfd) {
+            // Receive data from the server.
+            if (recv(sockfd, buff, MSG_LEN, 0) <= 0) {
+                perror("recv");
+                close(sockfd);
+            }
+
+            if (strcmp(buff, "/quit\n") == 0) {
+                close(sockfd);
+                printf("Connection fermé par le client\n");
+                exit(EXIT_SUCCESS);  // Arrête le programme client.
+            }
+            printf("Received from server: %s\n", buff);
+            
+        }
+        }
+        // si la connexion terminé on enlève du tableau 
+            if (fds[i].revents & POLLHUP) {
+                close(fds[i].fd);
+                fds[i].fd = 0;
+            }
+        }
+    }
 }
 
 
-// établir une connexion réseau à un serveur distant en utilisant les sockets 
 
-int handle_connect(const char *server_addr, const char *server_port) {
-	struct addrinfo hints, *result, *rp;
-	int sfd;
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(server_addr, server_port, &hints, &result) != 0) {
-		perror("getaddrinfo()");
-		exit(EXIT_FAILURE);
-	}
-	for (rp = result; rp != NULL; rp = rp->ai_next) {
-		sfd = socket(rp->ai_family, rp->ai_socktype,rp->ai_protocol);
-		if (sfd == -1) {
-			continue;
-		}
-		if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
-			break;
-		}
-		close(sfd);
-	}
-	if (rp == NULL) {
-		fprintf(stderr, "Could not connect\n");
-		exit(EXIT_FAILURE);
-	}
-	freeaddrinfo(result);
-	return sfd;
+
+int handle_connect(char *server_name, char *server_port) {
+    struct addrinfo hints, *result, *rp;
+    int sfd;
+
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(server_name, server_port, &hints, &result) != 0) {
+        perror("getaddrinfo");
+        exit(EXIT_FAILURE);
+    }
+
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sfd == -1) {
+            continue;
+        }
+        if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
+            break;
+        }
+        close(sfd);
+    }
+
+    if (rp == NULL) {
+        fprintf(stderr, "Could not connect\n");
+        exit(EXIT_FAILURE);
+    }
+
+    freeaddrinfo(result);
+
+    return sfd;
 }
 
-int main(int argc, char*argv[]) {
-	
-	// verifier les arguments passés en paramètre 
-	if (argc !=3){
-		printf("Arguments invalides !\n");
-	}
-	
-	const char *server_name = argv[1];
-	const char *server_port = argv[2];
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <server_name> <server_port>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
 
-	int sfd;
-	sfd = handle_connect(server_name, server_port);
-	echo_client(sfd);
-	close(sfd);
-	return EXIT_SUCCESS;
+    char *server_name = argv[1];
+    char *server_port = argv[2];
+
+    int sfd = handle_connect(server_name, server_port);
+
+    echo_client(sfd);
+
+
+    return EXIT_SUCCESS;
 }
+
 
