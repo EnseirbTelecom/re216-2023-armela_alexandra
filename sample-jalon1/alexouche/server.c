@@ -1,97 +1,219 @@
-#include <arpa/inet.h>  // Inclut l'en-tête pour les fonctions liées à inet (Internet).
-#include <netdb.h>      // Inclut l'en-tête pour les fonctions liées aux informations réseau.
-#include <netinet/in.h> // Inclut l'en-tête pour les structures et constantes Internet.
-#include <stdio.h>      // Inclut l'en-tête standard pour les entrées/sorties.
-#include <stdlib.h>     // Inclut l'en-tête standard pour les fonctions de gestion de la mémoire.
-#include <string.h>     // Inclut l'en-tête standard pour les fonctions de manipulation de chaînes de caractères.
-#include <sys/socket.h> // Inclut l'en-tête pour les fonctions liées aux sockets.
-#include <unistd.h>     // Inclut l'en-tête pour les fonctions liées aux appels système.
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stddef.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <poll.h>
 
-#include "common.h"     // Inclut l'en-tête personnalisé "common.h".
+#include "common.h"
 
-// Définition de la fonction echo_server prenant un descripteur de socket en argument.
-void echo_server(int sockfd) {
-    char buff[MSG_LEN]; // Déclare un tableau de caractères pour stocker les messages.
+struct Client {
+    int sockfd;
+    struct in_addr addr;
+	unsigned short int port;
+    struct Client * next;
+};
 
-    while (1) { // Boucle infinie pour la communication.
-        // Cleaning memory
-        memset(buff, 0, MSG_LEN); // Efface la mémoire tampon des messages.
 
-        // Receiving message
-        if (recv(sockfd, buff, MSG_LEN, 0) <= 0) { // Reçoit un message du client.
-            break; // Sort de la boucle si la réception échoue.
-        }
-        printf("Received: %s", buff); // Affiche le message reçu.
+int echo_server(int* num_clients,struct pollfd * fds,int i) {
+	char buff[MSG_LEN];
+	int sockfd=fds[i].fd;
+	
+	// Cleaning memory
+	memset(buff, 0, MSG_LEN);
+	// Receiving message
+	if ((recv(sockfd, buff, MSG_LEN, 0) <= 0)) {
+		*num_clients=*num_clients-1;
+		printf("Client disconnected. Total clients: %d\n", *num_clients);
+		close(sockfd);
+		fds[i].fd=0;
+		return(-1);
+		perror("recv");
+		return(-1);
+	}
 
-        // Sending message (ECHO)
-        if (send(sockfd, buff, strlen(buff), 0) <= 0) { // Envoie le message sur le socket.
-            break; // Sort de la boucle si l'envoi échoue.
-        }
-        printf("Message sent!\n"); // Affiche un message de confirmation d'envoi.
-    }
+	printf("Received: %s", buff);
+
+	//If message = "/quit"
+	if (strcmp(buff, "/quit\n") == 0) {
+		printf("Client requested to close the connection. Closing...\n");
+		
+		// Sending closing message (ECHO)
+		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+			perror("send");
+			return(-1);
+		}
+
+		printf("Closing message sent!\n");
+		
+		*num_clients=*num_clients-1;
+		printf("Client disconnected. Total clients: %d\n", *num_clients);
+		close(sockfd);
+		fds[i].fd=0;
+		return(-1);
+	}
+
+	// Sending message (ECHO)
+	if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+		perror("send");
+		return(-1);
+	}
+
+	printf("Message sent!\n");
+	return(1);
+		
 }
 
-// Fonction pour gérer la liaison du serveur.
-int handle_bind(char *server_port) {
+
+int handle_bind(char* server_port) {
+    // Déclaration des variables
     struct addrinfo hints, *result, *rp;
-    int sfd;
+    int sfd;  // Descripteur de fichier du socket
 
+    // Initialisation de la structure hints pour obtenir des informations sur l'adresse
     memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC; // Indique que l'on peut utiliser IPv4 ou IPv6.
-    hints.ai_socktype = SOCK_STREAM; // Indique que l'on utilise un socket de type TCP.
-    hints.ai_flags = AI_PASSIVE; // Indique que l'on écoute sur toutes les interfaces.
+    hints.ai_family = AF_UNSPEC;   // IPv4 ou IPv6
+    hints.ai_socktype = SOCK_STREAM;  // Socket de type flux (TCP)
+    hints.ai_flags = AI_PASSIVE;  // Utilisation pour un serveur
 
-    // Obtient les informations locales pour la liaison du serveur.
+    // Obtenir des informations sur l'adresse à partir du port et des indications fournies
     if (getaddrinfo(NULL, server_port, &hints, &result) != 0) {
-        perror("getaddrinfo()"); // Affiche un message d'erreur en cas d'échec.
-        exit(EXIT_FAILURE); // Quitte le programme en cas d'erreur.
+        perror("getaddrinfo()");  // En cas d'erreur lors de l'obtention des informations sur l'adresse
+        exit(EXIT_FAILURE);
     }
 
-    // Parcourt la liste des résultats obtenus à partir de getaddrinfo.
+    // Parcourir la liste des résultats possibles
     for (rp = result; rp != NULL; rp = rp->ai_next) {
+        // Créer un socket en utilisant les informations fournies
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        
         if (sfd == -1) {
-            continue; // Continue la boucle si la création du socket échoue.
+            continue;  // Si la création du socket échoue, essayer avec les informations suivantes
         }
+        
+        // Liaison du socket à l'adresse et au port spécifiés
         if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0) {
-            break; // Établit la liaison du serveur et sort de la boucle.
+            break;  // Si la liaison est réussie, sortir de la boucle
         }
-        close(sfd); // Ferme le socket si la liaison échoue.
+        
+        // En cas d'échec de la liaison, fermer le socket
+        close(sfd);
     }
 
-    // Vérifie si rp est toujours NULL (liaison échouée).
+    // Si rp est NULL, cela signifie que la liaison a échoué pour toutes les informations
     if (rp == NULL) {
-        fprintf(stderr, "Could not bind\n"); // Affiche un message d'erreur.
-        exit(EXIT_FAILURE); // Quitte le programme en cas d'échec de la liaison.
+        fprintf(stderr, "Could not bind\n");  // Affichage d'un message d'erreur
+        exit(EXIT_FAILURE);  // Sortie du programme avec un code d'erreur
     }
 
-    freeaddrinfo(result); // Libère la mémoire utilisée par les informations obtenues.
+    // Libération de la mémoire allouée pour les informations sur l'adresse
+    freeaddrinfo(result);
 
-    return sfd; // Retourne le descripteur de socket lié au serveur.
+    // Renvoie le descripteur de fichier du socket lié avec succès
+    return sfd;
 }
+
+
+
 
 int main(int argc, char *argv[]) {
-	if (argc != 2) {
-        fprintf(stderr, "Usage: %s <server_name> <server_port>\n", argv[0]);
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <server_port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
     char *server_port = argv[1];
 
-    struct sockaddr cli;
-    int sfd, connfd;
-    socklen_t len;
-    sfd = handle_bind(server_port); // Établit la liaison du serveur.
+    int sfd = handle_bind(server_port);
+
     if ((listen(sfd, SOMAXCONN)) != 0) {
-        perror("listen()\n"); // Affiche un message d'erreur en cas d'échec.
-        exit(EXIT_FAILURE); // Quitte le programme en cas d'erreur.
+        perror("listen()\n");
+        exit(EXIT_FAILURE);
     }
-    len = sizeof(cli);
-    if ((connfd = accept(sfd, (struct sockaddr*) &cli, &len)) < 0) {
-        perror("accept()\n"); // Affiche un message d'erreur en cas d'échec.
-        exit(EXIT_FAILURE); // Quitte le programme en cas d'erreur.
+
+	//initialisation du nombre de client
+	int num_clients=0;
+
+    // Initialisation du tableau de structures pollfd
+    int max_conn = 256;
+    struct pollfd fds[max_conn];
+    memset(fds, 0, max_conn * sizeof(struct pollfd));
+
+    // Insertion de listen_fd dans le tableau
+    fds[0].fd = sfd;
+    fds[0].events = POLLIN;
+
+	struct Client * chaine_cli = NULL;
+
+    while (1) {
+        // Appel à poll pour attendre de nouveaux événements
+        int active_fds = poll(fds, max_conn, -1);
+
+        for (int i = 0; i < max_conn; i++) {
+            // S'il y a de l'activité sur fds, accepter une nouvelle connexion
+            if (fds[i].fd == sfd && (fds[i].revents & POLLIN) == POLLIN) {
+                
+                // Accepter la nouvelle connexion et ajouter le nouveau descripteur de fichier dans le tableau fds
+                struct sockaddr_in client_addr;
+                socklen_t len = sizeof(client_addr);
+                int new_fd = accept(sfd, (struct sockaddr *)&client_addr, &len);
+				num_clients++;
+
+				// Obtention de l'adresse IP du client
+				char client_ip[INET_ADDRSTRLEN];
+				if (inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN) == NULL) {
+					perror("inet_ntop");
+					exit(EXIT_FAILURE);
+				}
+
+				// Obtention du port du client
+				int client_port = ntohs(client_addr.sin_port);
+
+				//Création de la nouvelle structure client 
+				struct Client *new_client=malloc(sizeof(struct Client));
+				new_client->sockfd=new_fd;
+				new_client->addr=client_addr.sin_addr;
+				new_client->port=client_addr.sin_port;
+
+				if (chaine_cli==NULL)
+					chaine_cli=new_client;
+				else
+					chaine_cli->next=new_client;
+				
+
+
+				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
+
+                if (new_fd == -1) {
+                    perror("accept");
+                    exit(EXIT_FAILURE);
+                }
+                for (int j = 0; j < max_conn; j++) {
+                    if (fds[j].fd == 0) {
+                        fds[j].fd = new_fd;
+                        fds[j].events = POLLIN;
+						fds[j].revents = 0;
+						break;
+                    }
+                }
+				fds[i].revents = 0;
+            }
+
+            // S'il y a de l'activité sur un socket autre que listen_fd, lire les données
+            if (fds[i].fd != sfd && (fds[i].revents & POLLIN) == POLLIN) {
+                printf("Activity on socket %d\n", fds[i].fd);
+                echo_server(&num_clients,fds,i)  ;
+            }
+        }
     }
-    echo_server(connfd); // Lance la fonction de communication serveur-client.
-    close(sfd); // Ferme le socket du serveur.
+
+    close(sfd);
     return EXIT_SUCCESS;
 }
