@@ -15,78 +15,75 @@
 // MAX_EVENTS 2 : 
 
 void echo_client(int sockfd) {
+    
     char buff[MSG_LEN];
     int n;
+    
     // Initialisation de poll
     struct pollfd fds[MAX_EVENTS];
+    // reset la mémoire
     memset(fds, 0, MAX_EVENTS * sizeof(struct pollfd));
 
-    //socket d'écoute : clavier 
+    // socket d'écoute : clavier 
     fds[0].fd = STDIN_FILENO; 
     fds[0].events = POLLIN;
     fds[0].revents = 0;
 
-    //Socket d'écoute pour les messages : connection 
+    // Socket d'écoute: connection 
     fds[1].fd = sockfd; 
     fds[1].events = POLLIN;
     fds[1].revents = 0;
 
 
     while (1) {
+        
         printf("Message: \n");
-
-
+        
         int active_poll = poll(fds, MAX_EVENTS, -1);
-
         if (active_poll < 0) {
             perror("poll");
             exit(EXIT_FAILURE);
         }
         
         for(int i=0; i<MAX_EVENTS; i++){
-        if (fds[i].revents & (POLLIN | POLLHUP)){
-        
-            
-        // If there is data available from the keyboard (stdin).
-        if (fds[i].fd == STDIN_FILENO) {
-            memset(buff, 0, MSG_LEN);
-            n = 0;
-            while ((buff[n++] = getchar()) != '\n') {}
+            if (fds[i].revents & (POLLIN | POLLHUP)){
+                
+                // If there is data available from the keyboard (stdin).
+                if (fds[i].fd == STDIN_FILENO) {
+                    memset(buff, 0, MSG_LEN);
+                    n = 0;
+                    while ((buff[n++] = getchar()) != '\n') {}
 
-            // Send the message to the server.
-            if (send(sockfd, buff, strlen(buff), 0) <= 0) {
-                perror("send");
-                close(sockfd);
-            }
-            printf("Message sent: %s\n", buff);
+                    // Send the message to the server.
+                    if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+                        perror("send");
+                        close(sockfd);
+                    }
+                     printf("Message sent: %s\n", buff);
             
-            // Cleaning memory
+                    
 					memset(buff, 0, MSG_LEN);
-
-                    fds[i].events = POLLIN;
-                    //tjs remettre le revents à 0 
+                    fds[i].events = POLLIN; 
 					fds[i].revents = 0;
+                }
 
-        }
+                // If data is available from the server.
+                else if (fds[i].fd == sockfd) {
+                    // Receive data from the server.
+                    if (recv(sockfd, buff, MSG_LEN, 0) <= 0){
+                        perror("recv");
+                        close(sockfd);
+                    }
 
-        // If data is available from the server.
-        else if (fds[i].fd == sockfd) {
-            // Receive data from the server.
-            if (recv(sockfd, buff, MSG_LEN, 0) <= 0) {
-                perror("recv");
-                close(sockfd);
-            }
-
-            if (strcmp(buff, "/quit\n") == 0) {
-                close(sockfd);
-                printf("Connection fermé par le client\n");
-                exit(EXIT_SUCCESS);  // Arrête le programme client.
-            }
-            printf("Received from server: %s\n", buff);
-            
-        }
-        }
-        // si la connexion terminé on enlève du tableau 
+                if (strcmp(buff, "/quit\n") == 0) {
+                    close(sockfd);
+                    printf("Connection fermé par le client\n");
+                    exit(EXIT_SUCCESS);  // Arrête le programme client.
+                }
+                printf("Received from server: %s\n", buff);   
+                }
+            }   
+            // si la connexion terminé on enlève du tableau 
             if (fds[i].revents & POLLHUP) {
                 close(fds[i].fd);
                 fds[i].fd = 0;
@@ -133,6 +130,7 @@ int handle_connect(char *server_name, char *server_port) {
 }
 
 int main(int argc, char *argv[]) {
+    
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <server_name> <server_port>\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -144,8 +142,6 @@ int main(int argc, char *argv[]) {
     int sfd = handle_connect(server_name, server_port);
 
     echo_client(sfd);
-
-
     return EXIT_SUCCESS;
 }
 
