@@ -276,6 +276,11 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 
 		//NICKNAME_IN
 		if (msgstruct.type ==NICKNAME_INFOS){
+			if (strcmp(msgstruct.infos,"\0")){
+				printf("[Server]: %s connected ",buff);
+				return 1;
+			}
+			
 			printf("[Server]: %s connected ",msgstruct.infos);
 
     		char *infos_user = strtok(buff, "");
