@@ -9,13 +9,18 @@
 #include <poll.h>
 
 #include "common.h"
+#include "msg_struct.h"
+
 
 #define MAX_EVENTS 2
 
 // MAX_EVENTS 2 : 
 
 void echo_client(int sockfd) {
-    
+
+    struct message msgstruct;
+   
+
     char buff[MSG_LEN];
     int n;
     
@@ -36,7 +41,11 @@ void echo_client(int sockfd) {
 
 
     while (1) {
+
+        memset(&msgstruct, 0, sizeof(struct message));
+		memset(buff, 0, MSG_LEN);
         
+        // Getting message from client 
         printf("Message: \n");
         
         int active_poll = poll(fds, MAX_EVENTS, -1);
@@ -53,15 +62,21 @@ void echo_client(int sockfd) {
                     memset(buff, 0, MSG_LEN);
                     n = 0;
                     while ((buff[n++] = getchar()) != '\n') {}
+                    //Filling structure
+                    msgstruct.type = ECHO_SEND;
+                    msgstruct.pld_len = strlen(buff);
 
-                    // Send the message to the server.
-                    if (send(sockfd, buff, strlen(buff), 0) <= 0) {
-                        perror("send");
-                        close(sockfd);
+                    // Sending struct
+                    if (send(sockfd, &msgstruct, sizeof(struct message), 0) <= 0) {
+                        break;
                     }
-                     printf("Message sent: %s\n", buff);
-            
-                    
+                    //Sending message
+                    if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
+			            break;
+		            }
+                    printf("Message sent: %s\n", buff);
+                    //Cleaning memory 
+                    memset(&msgstruct, 0, sizeof(struct message));
 					memset(buff, 0, MSG_LEN);
                     fds[i].events = POLLIN; 
 					fds[i].revents = 0;
@@ -69,18 +84,22 @@ void echo_client(int sockfd) {
 
                 // If data is available from the server.
                 else if (fds[i].fd == sockfd) {
-                    // Receive data from the server.
-                    if (recv(sockfd, buff, MSG_LEN, 0) <= 0){
-                        perror("recv");
-                        close(sockfd);
-                    }
+                    // Receiving structure
+                    if (recv(sockfd, &msgstruct, sizeof(struct message), 0) <= 0) {
+			            break;
+		            }
+                    // Receiving message
+		            if (recv(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
+                        break;
+		            }
 
-                if (strcmp(buff, "/quit\n") == 0) {
-                    close(sockfd);
-                    printf("Connection fermé par le client\n");
-                    exit(EXIT_SUCCESS);  // Arrête le programme client.
-                }
-                printf("Received from server: %s\n", buff);   
+                    if (strcmp(buff, "/quit\n") == 0) {
+                        close(sockfd);
+                        printf("Connection fermé par le client\n");
+                        exit(EXIT_SUCCESS);  // Arrête le programme client.
+                    }
+                    printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+		            printf("Received: %s", buff);   
                 }
             }   
             // si la connexion terminé on enlève du tableau 
@@ -144,5 +163,3 @@ int main(int argc, char *argv[]) {
     echo_client(sfd);
     return EXIT_SUCCESS;
 }
-
-
