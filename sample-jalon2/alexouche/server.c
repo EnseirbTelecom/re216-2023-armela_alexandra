@@ -15,7 +15,9 @@
 #include "common.h"
 #include "msg_struct.h"
 
-//Quand le server envoi un message nick_sender=""
+#define MAX_CONN 128
+
+//Gère la déconnexion avec suppression de la liste chainée!
 
 struct Client {
     int sockfd;
@@ -25,7 +27,7 @@ struct Client {
     struct Client * next;
 };
 
-int send_message(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
+int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
 	// Filling structure
 	msgstruct.pld_len = strlen(buff);
@@ -47,8 +49,63 @@ int send_message(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char i
 	return 1;
 }
 
+int is_connected_client(struct Client * chaine_cli_head, char* client){
+	struct Client * current=chaine_cli_head;
+    while (current!=NULL) {
+        if (strcmp(current->nickname, client) == 0) {
+            return 1; 
+        }
+		current=current->next;
+    }
+    return 0; 
+}
 
-int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,char** clients_connected,struct Client * chaine_cli_head) {
+
+int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head ){
+	if (is_connected_client(chaine_cli_head, infos)==1){
+		char buff[MSG_LEN]="Nickname already attribuate";
+		return send_struct(sockfd,"\0",NICKNAME_NEW,nick_sender,buff);
+	}
+
+	//Update client connected list
+	struct Client * current=chaine_cli_head;
+
+    while (current!=NULL) {
+        if (current->sockfd==sockfd) {
+			current->nickname=infos;
+            printf("Username has been updated.\n"); 
+        }
+		current=current->next;
+    }
+
+	//Reply to the client
+	if (strcmp(nick_sender, "\0") == 0){
+		char buff[MSG_LEN]="Welcome on the chat ";
+		strcat(buff, infos); 
+		return send_struct(sockfd,"\0",NICKNAME_NEW,infos,buff);
+	}
+
+	char buff[MSG_LEN]="Your username has been updated.";
+	strcat(buff, infos); 
+	return send_struct(sockfd,"\0",NICKNAME_NEW,infos,buff);
+
+}
+
+int nickname_list(int sockfd,struct Client * chaine_cli_head ){
+	char buff[MSG_LEN];
+
+	//Update client connected list
+	struct Client * current=chaine_cli_head;
+
+    while (current!=NULL) {
+		strcat(buff,current->nickname); 
+		current=current->next;
+    }
+
+
+}
+
+int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client * chaine_cli_head) {
 	int sockfd=fds[i].fd;
 	
 	struct message msgstruct;
@@ -73,7 +130,17 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,ch
 		return 0;
 	}
 
-	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	
+
+	//NICKNAME_NEW
+	if (msgstruct.type == NICKNAME_NEW){
+		return nickname_new(sockfd,msgstruct.nick_sender,msgstruct.infos,chaine_cli_head);
+	
+	//NICKNAME_LIST
+	if (msgstruct.type == NICKNAME_LIST){
+		return nickname_list
+		
 	printf("Received: %s", buff);
 
 
@@ -87,29 +154,6 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,ch
 	if(send_message(sockfd,"/0",ECHO_SEND,"/0","/0")==0)
 		return 0;
 
-	//Received NICKNAME_NEW
-	if (msgstruct.type == NICKNAME_NEW ){
-		printf("Message type NICKNAME_NEW \n");
-		for (int i = 0; i < 128; i++) {
-			//Nickname already attribuate
-			if (strcmp(msgstruct.infos, clients_connected[i])) {
-				char buff[MSG_LEN]="Nickname already attribuate";
-				if(send_message(sockfd,"/0",NICKNAME_NEW,"/0",buff)==0)
-					return 0;
-
-				// Si le client n'avait pas de pseudo, on lui en demande un
-				if (strcmp(msgstruct.nick_sender, "/0") ){
-					char buff[MSG_LEN]="please login with /nick <your pseudo>";
-					if(send_message(sockfd,"/0",NICKNAME_NEW,"/0",buff)==0)
-						return 0;
-					return 1;
-				}
-			}
-		}
-
-		// Uptdate connected client liste
-		*nick_client=msgstruct.infos;
-		printf("Nickname updated in connected client list\n");
 	
 		// Uptdate linked client liste	
 		struct Client * find_cli = chaine_cli_head;
@@ -187,31 +231,28 @@ int main(int argc, char *argv[]) {
 	int num_clients=0;
 
     // Initialisation du tableau de structures pollfd
-    int max_conn = 256;
-    struct pollfd fds[max_conn];
-    memset(fds, 0, max_conn * sizeof(struct pollfd));
+    struct pollfd fds[MAX_CONN];
+    memset(fds, 0, MAX_CONN * sizeof(struct pollfd));
 
     // Insertion de listen_fd dans le tableau
     fds[0].fd = sfd;
     fds[0].events = POLLIN;
 
 
-	char **clients_connected=malloc(max_conn*sizeof(int*));
-	for (int i = 0; i < max_conn; i++)
-		clients_connected[i]=malloc(NICK_LEN*sizeof(int));
+	char clients_connected[MAX_CONN][NICK_LEN];
 
 	
 	struct Client * chaine_cli = NULL;
 	struct Client * chaine_cli_head = NULL;
 	while (1) {
         // Appel à poll pour attendre de nouveaux événements
-        int active_fds = poll(fds, max_conn, -1);
+        int active_fds = poll(fds, MAX_CONN, -1);
         if (active_fds<0){
 			perror("poll");
             exit(EXIT_FAILURE);
 		}
 
-        for (int i = 0; i < max_conn; i++) {
+        for (int i = 0; i < MAX_CONN; i++) {
             // S'il y a de l'activité sur fds, accepter une nouvelle connexion
             if (fds[i].fd == sfd && (fds[i].revents & POLLIN) == POLLIN) {
                 
@@ -260,7 +301,7 @@ int main(int argc, char *argv[]) {
 
 				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
 
-                for (int j = 0; j < max_conn; j++) {
+                for (int j = 0; j < MAX_CONN; j++) {
                     if (fds[j].fd == 0) {
                         fds[j].fd = new_fd;
                         fds[j].events = POLLIN;
