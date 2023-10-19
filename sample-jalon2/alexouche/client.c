@@ -27,52 +27,124 @@ int containsOnlyAlphanumeric(char str[]) {
     return 1; // Tous les caractères sont des chiffres ou des lettres
 }
 
-int is_order_nick(char* buff,char** my_nickname){
-
-	if (strncmp(buff, "/nick ", strlen("/nick ")) == 0)
-	{
-		char* new_nick = strstr(buff, "/nick ");
-		
-		new_nick += strlen("/nick ");
-		int nick_len=strlen(new_nick);
-
-		if ((nick_len<3)||(nick_len>127)){
-			printf("The my_nickname size is incorrect; it should be between 3 and 127 characters.");
-			return 0;
-		}
-
-
-		if (containsOnlyAlphanumeric(new_nick)==0){
-			printf("The my_nickname should only contain letters of the alphabet or numbers.");
-			return 0;
-		}
-		*my_nickname=new_nick;
-		return 1;		
-	}
-	return 0;
-}
-
-int send_nick(char** my_nickname,struct message msgstruct,int sockfd_server){
-
-	printf("sn : %s\n",*my_nickname);
+int send_message(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
+	struct message msgstruct;
 	// Filling structure
-	msgstruct.pld_len = 1;
-	strncpy(msgstruct.nick_sender, "\0", 1);
-	msgstruct.type = NICKNAME_NEW ;
-	strncpy(msgstruct.infos, *my_nickname, strlen(*my_nickname));
+	msgstruct.pld_len = strlen(buff);
+	strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
+	msgstruct.type = type;
+	strncpy(msgstruct.infos, infos, strlen(infos));
+
 	// Sending structure
-	if (send(sockfd_server, &msgstruct, sizeof(msgstruct), 0) <= 0) {
+	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
 		perror("send");
 		return 0;
 	}
 	// Sending message (ECHO)
-	if (send(sockfd_server, "/0", msgstruct.pld_len, 0) <= 0) {
+	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
 		perror("send");
 		return 0;
 	}
-	printf("Message sent!\n");	
+	printf("Message sent!\n");
 	return 1;
 }
+
+
+int nick(char buff[MSG_LEN],int len_order,int n,int sockfd_server,char** my_nickname){
+	//Récupère le nouveau nickname
+    char new_nickname[256];
+    strncpy(new_nickname, buff+len_order, n-len_order);
+
+    // Terminer le nouveau nickname avec un caractère nul
+    new_nickname[n-len_order] = '\0';
+
+	if ((n-len_order<3)||(n-len_order>127)){
+		printf("The nickname size is incorrect; it should be between 3 and 127 characters.");
+		return 0;
+	}
+
+	if (containsOnlyAlphanumeric(new_nickname)==0){
+		printf("The nickname should only contain letters of the alphabet or numbers.");
+		return 0;
+	}
+
+	if(send_message(sockfd_server,*my_nickname,NICKNAME_NEW,new_nickname,"\0")==0)
+		return 0;
+			
+	return 1;
+}
+
+
+int who(char buff[MSG_LEN],int len_order,int n,int sockfd_server,char** my_nickname){
+
+	if(send_message(sockfd_server,*my_nickname,NICKNAME_LIST,"\0","\0")==0)
+		return 0;
+			
+	return 1;
+}
+
+int whois(char buff[MSG_LEN],int len_order,int n,int sockfd_server,char** my_nickname){
+	//Récupère le nouveau nickname
+    char nickname[256];
+    strncpy(nickname, buff+len_order, n-len_order);
+
+    // Terminer le nouveau nickname avec un caractère nul
+    nickname[n-len_order] = '\0';
+
+	if ((n-len_order<3)||(n-len_order>127)){
+		printf("The nickname size is incorrect; it should be between 3 and 127 characters.");
+		return 0;
+	}
+
+	if (containsOnlyAlphanumeric(nickname)==0){
+		printf("The nickname should only contain letters of the alphabet or numbers.");
+		return 0;
+	}
+
+	if(send_message(sockfd_server,*my_nickname,NICKNAME_NEW,nickname,"\0")==0)
+		return 0;
+			
+	return 1;
+}
+
+int msgall(char buff[MSG_LEN],int len_order,int n,int sockfd_server,char** my_nickname){
+	//Récupère le message
+    char msg[256];
+    strncpy(msg, buff+len_order, n-len_order);
+
+    // Terminer le message
+    msg[n-len_order] = '\0';
+
+	if(send_message(sockfd_server,*my_nickname,NICKNAME_NEW,"\0",msg)==0)
+		return 0;
+			
+	return 1;
+}
+
+int msg(char buff[MSG_LEN],int len_order,int n,int sockfd_server,char** my_nickname){
+	//Récupère le nouveau nickname
+    char nickname[256];
+    strncpy(nickname, buff+len_order, n-len_order);
+
+    // Terminer le nouveau nickname avec un caractère nul
+    nickname[n-len_order] = '\0';
+
+	if ((n-len_order<3)||(n-len_order>127)){
+		printf("The nickname size is incorrect; it should be between 3 and 127 characters.");
+		return 0;
+	}
+
+	if (containsOnlyAlphanumeric(nickname)==0){
+		printf("The nickname should only contain letters of the alphabet or numbers.");
+		return 0;
+	}
+
+	if(send_message(sockfd_server,*my_nickname,NICKNAME_NEW,nickname,"\0")==0)
+		return 0;
+			
+	return 1;
+}
+
 
 
 int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my_nickname) {
@@ -88,13 +160,46 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 		// Getting message from client
 		n = 0;
 		while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
+
+		//NICKNAME_NEW
+		char* order= "/nick ";
+		int len_order=strlen(order);
+
+		if (strncmp(buff, order, len_order))
+			return nick(buff,len_order,n,sockfd_server,my_nickname);
+					
+			
+		//NICKNAME_LIST
+		char* order= "/who ";
+		int len_order=strlen(order);
+
+		if (strncmp(buff, order, len_order))
+			return who(buff,len_order,n,sockfd_server,my_nickname);
 		
-		if (is_order_nick(buff,my_nickname))
-		{
-			if(send_nick(my_nickname,msgstruct,sockfd_server)==0){
-				return 0;
-			}
-		}
+		//NICKNAME_IN
+		char* order= "/whois ";
+		int len_order=strlen(order);
+
+		if (strncmp(buff, order, len_order))
+			return whois(buff,len_order,n,sockfd_server,my_nickname);
+		
+		//UNICAST_SEND
+		char* order= "/msgall ";
+		int len_order=strlen(order);
+
+		if (strncmp(buff, order, len_order))
+			return msgall(buff,len_order,n,sockfd_server,my_nickname);
+		
+		//UNICAST_SEND
+		char* order= "/msg ";
+		int len_order=strlen(order);
+
+		if (strncmp(buff, order, len_order))
+			return msg(buff,len_order,n,sockfd_server,my_nickname);
+		
+
+		
+
 		/*
 		// Filling structure
 		msgstruct.pld_len = strlen(buff);
@@ -116,7 +221,6 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 	}
 	if (sockfd_active==sockfd_server)
 	{
-		printf("server actif\n");
 		// Cleaning memory
 		memset(&msgstruct, 0, sizeof(struct message));
 		memset(buff, 0, MSG_LEN);
@@ -135,16 +239,16 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 		printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 		printf("[Server]: %s \n", buff);
 
-
-
-		if (strcmp(msgstruct.nick_sender, "server") )
-		{
-			printf("[Server]: %s", buff);
+		//Received ECHO_SEND
+		if (msgstruct.type == ECHO_SEND){
+			printf("Server received the message\n");
 			return 1;
 		}
 		
-		//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
-		//printf("[Server]: %s", buff);
+		//Send ECHO_SEND
+		if(send_message(sockfd_server,*my_nickname,ECHO_SEND,"/0","/0")==0)
+			return 0;
+
 
 		/* Demande fermeture de connexion
 		if (strcmp(buff, "/quit\n") == 0) {

@@ -15,6 +15,8 @@
 #include "common.h"
 #include "msg_struct.h"
 
+//Quand le server envoi un message nick_sender=""
+
 struct Client {
     int sockfd;
 	char* nickname;
@@ -23,113 +25,34 @@ struct Client {
     struct Client * next;
 };
 
-int ask_nickname(char * my_nickname,int sockfd){
+int send_message(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
-	char buff[MSG_LEN]="please login with /nick <your pseudo>";
 	// Filling structure
 	msgstruct.pld_len = strlen(buff);
-	strncpy(msgstruct.nick_sender, my_nickname, strlen(my_nickname));
-	msgstruct.type = NICKNAME_NEW;
-	strncpy(msgstruct.infos, "\0", 1);
+	strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
+	msgstruct.type = type;
+	strncpy(msgstruct.infos, infos, strlen(infos));
 
 	// Sending structure
 	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
 		perror("send");
 		return 0;
 	}
-	// Sending message (ECHO)
+	// Sending message 
 	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
 		perror("send");
 		return 0;
-	}	
-	printf("Ask nickname send\n");
-	return 1;
-}
-
-int nickname_already_attribuate(char * my_nickname,int sockfd){
-	struct message msgstruct;
-	char buff[MSG_LEN]="Nickname already attribuate";
-	// Filling structure
-	msgstruct.pld_len = strlen(buff);
-	strncpy(msgstruct.nick_sender, my_nickname, strlen(my_nickname));
-	msgstruct.type = NICKNAME_NEW;
-	strncpy(msgstruct.infos, "\0", 1);
-
-	// Sending structure
-	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
-		perror("send");
-		return 0;
 	}
-	// Sending message (ECHO)
-	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
-		perror("send");
-		return 0;
-	}	
-	printf("send\n");
-	return 1;
-}
-
-
-
-/*
-int echo_server(int* num_clients,struct pollfd * fds,int i) {
-	char buff[MSG_LEN];
-	int sockfd=fds[i].fd;
-	
-	// Cleaning memory
-	memset(buff, 0, MSG_LEN);
-	// Receiving message
-	if ((recv(sockfd, buff, MSG_LEN, 0) <= 0)) {
-		*num_clients=*num_clients-1;
-		printf("Client disconnected. Total clients: %d\n", *num_clients);
-		close(sockfd);
-		fds[i].fd=0;
-		return(-1);
-		perror("recv");
-		return(-1);
-	}
-
-	printf("Received: %s", buff);
-
-	//If message = "/quit"
-	if (strcmp(buff, "/quit\n") == 0) {
-		printf("Client requested to close the connection. Closing...\n");
-		
-		// Sending closing message (ECHO)
-		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
-			perror("send");
-			return(-1);
-		}
-
-		printf("Closing message sent!\n");
-		
-		*num_clients=*num_clients-1;
-		printf("Client disconnected. Total clients: %d\n", *num_clients);
-		close(sockfd);
-		fds[i].fd=0;
-        fds[i].events=0;
-        fds[i].revents=0;
-		return(0);
-	}
-
-	// Sending message (ECHO)
-	if (send(sockfd, buff, strlen(buff), 0) <= 0) {
-		perror("send");
-		return(-1);
-	}
-
 	printf("Message sent!\n");
-	return(1);
-		
+	return 1;
 }
-*/
+
 
 int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,char** clients_connected,struct Client * chaine_cli_head) {
-	struct message msgstruct;
-	char buff[MSG_LEN];
-
 	int sockfd=fds[i].fd;
 	
+	struct message msgstruct;
+	char buff[MSG_LEN];
 
 	// Cleaning memory
 	memset(&msgstruct, 0, sizeof(struct message));
@@ -143,35 +66,52 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,ch
 		fds[i].fd=0;
 		return(0);
 	}
+
 	// Receiving message
 	if (recv(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
 		perror("recv");
 		return 0;
 	}
 
-	
+	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	printf("Received: %s", buff);
 
 
-	if (msgstruct.type ==NICKNAME_NEW )
-	{
-		printf("Message type nickname\n");
+	//Received ECHO_SEND
+	if (msgstruct.type == ECHO_SEND){
+		printf("Client %s received the message\n",msgstruct.nick_sender);
+		return 1;
+	}
+
+	//Send ECHO_SEND
+	if(send_message(sockfd,"/0",ECHO_SEND,"/0","/0")==0)
+		return 0;
+
+	//Received NICKNAME_NEW
+	if (msgstruct.type == NICKNAME_NEW ){
+		printf("Message type NICKNAME_NEW \n");
 		for (int i = 0; i < 128; i++) {
-			if (strcmp(msgstruct.infos, clients_connected[i]) == 0) {
-				int ret = nickname_already_attribuate("server",sockfd);
-				if (ret==0){
+			//Nickname already attribuate
+			if (strcmp(msgstruct.infos, clients_connected[i])) {
+				char buff[MSG_LEN]="Nickname already attribuate";
+				if(send_message(sockfd,"/0",NICKNAME_NEW,"/0",buff)==0)
 					return 0;
+
+				// Si le client n'avait pas de pseudo, on lui en demande un
+				if (strcmp(msgstruct.nick_sender, "/0") ){
+					char buff[MSG_LEN]="please login with /nick <your pseudo>";
+					if(send_message(sockfd,"/0",NICKNAME_NEW,"/0",buff)==0)
+						return 0;
+					return 1;
 				}
-				return 1; // La chaîne est trouvée dans le tableau
 			}
 		}
 
-		// On met à jour dans la liste des clients connectés
+		// Uptdate connected client liste
 		*nick_client=msgstruct.infos;
 		printf("Nickname updated in connected client list\n");
 	
-		
-		
-		//OPn met à jour dans la liste des clients
+		// Uptdate linked client liste	
 		struct Client * find_cli = chaine_cli_head;
 			
 		while (find_cli->next!=NULL){
@@ -183,22 +123,16 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,char **nick_client,ch
 			else 
 				find_cli=find_cli->next;
 		}
+		return 1;
 	}
-	
-	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
-	printf("Received: %s", buff);
-	printf(" hello %s \n",msg_type_str[msgstruct.type]);
-	// Sending structure (ECHO)
-	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
-		perror("send");
-		return 0;
+
+	//Si le client n'a pas de pseudo on lui en demande 1
+	if (strcmp(msgstruct.nick_sender, "/0") ){
+		char buff[MSG_LEN]="please login with /nick <your pseudo>";
+		if(send_message(sockfd,"/0",NICKNAME_NEW,"/0",buff)==0)
+			return 0;
+		return 1;
 	}
-	// Sending message (ECHO)
-	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
-		perror("send");
-		return 0;
-	}
-	printf("Message sent!\n");
 	return 1;
 }
 	
@@ -261,14 +195,12 @@ int main(int argc, char *argv[]) {
     fds[0].fd = sfd;
     fds[0].events = POLLIN;
 
-	char my_nickname[NICK_LEN]="server";
+
 	char **clients_connected=malloc(max_conn*sizeof(int*));
 	for (int i = 0; i < max_conn; i++)
-	{
 		clients_connected[i]=malloc(NICK_LEN*sizeof(int));
-	}
-	
 
+	
 	struct Client * chaine_cli = NULL;
 	struct Client * chaine_cli_head = NULL;
 	while (1) {
@@ -311,7 +243,9 @@ int main(int argc, char *argv[]) {
 				new_client->nickname="/0";
                 new_client->next=NULL;
 
-				ask_nickname(my_nickname,new_fd);
+				char buff[MSG_LEN]="please login with /nick <your pseudo>";
+				if(send_message(new_fd,"/0",NICKNAME_NEW,"/0",buff)==0)
+					exit(EXIT_FAILURE);
 
                 //Cas premier client
 				if (chaine_cli==NULL){
@@ -341,13 +275,9 @@ int main(int argc, char *argv[]) {
             // S'il y a de l'activité sur un socket autre que listen_fd, lire les données
             if (fds[i].fd != sfd && (fds[i].revents & POLLIN) == POLLIN) {
                 printf("Activity on socket %d\n", fds[i].fd);
-				if (strcmp(clients_connected[i],"/0"))
-				{
-					ask_nickname(my_nickname,fds[i].fd);
-				}
-				
-                int ret=echo_server(&num_clients,fds,i,&clients_connected[i],clients_connected,chaine_cli_head)  ;
-                if (ret==-1){
+				int ret=echo_server(&num_clients,fds,i,&clients_connected[i],clients_connected,chaine_cli_head)  ;
+                
+				if (ret==-1){
                     perror("echo_server");
                     exit(EXIT_FAILURE);
                 }
@@ -369,6 +299,109 @@ int main(int argc, char *argv[]) {
 
 
 
+
+/*
+
+int ask_nickname(int sockfd){
+	struct message msgstruct;
+	char buff[MSG_LEN]="please login with /nick <your pseudo>";
+	// Filling structure
+	msgstruct.pld_len = strlen(buff);
+	strncpy(msgstruct.nick_sender, my_nickname, strlen(my_nickname));
+	msgstruct.type = NICKNAME_NEW;
+	strncpy(msgstruct.infos, "\0", 1);
+
+	// Sending structure
+	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
+		perror("send");
+		return 0;
+	}
+	// Sending message (ECHO)
+	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
+		perror("send");
+		return 0;
+	}	
+	printf("Ask nickname send\n");
+	return 1;
+}
+
+int nickname_already_attribuate(char * my_nickname,int sockfd){
+	struct message msgstruct;
+	char buff[MSG_LEN]="Nickname already attribuate";
+	// Filling structure
+	msgstruct.pld_len = strlen(buff);
+	strncpy(msgstruct.nick_sender, my_nickname, strlen(my_nickname));
+	msgstruct.type = NICKNAME_NEW;
+	strncpy(msgstruct.infos, "\0", 1);
+
+	// Sending structure
+	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
+		perror("send");
+		return 0;
+	}
+	// Sending message (ECHO)
+	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
+		perror("send");
+		return 0;
+	}	
+	printf("send\n");
+	return 1;
+}
+*/
+
+
+/*
+int echo_server(int* num_clients,struct pollfd * fds,int i) {
+	char buff[MSG_LEN];
+	int sockfd=fds[i].fd;
+	
+	// Cleaning memory
+	memset(buff, 0, MSG_LEN);
+	// Receiving message
+	if ((recv(sockfd, buff, MSG_LEN, 0) <= 0)) {
+		*num_clients=*num_clients-1;
+		printf("Client disconnected. Total clients: %d\n", *num_clients);
+		close(sockfd);
+		fds[i].fd=0;
+		return(-1);
+		perror("recv");
+		return(-1);
+	}
+
+	printf("Received: %s", buff);
+
+	//If message = "/quit"
+	if (strcmp(buff, "/quit\n") == 0) {
+		printf("Client requested to close the connection. Closing...\n");
+		
+		// Sending closing message (ECHO)
+		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+			perror("send");
+			return(-1);
+		}
+
+		printf("Closing message sent!\n");
+		
+		*num_clients=*num_clients-1;
+		printf("Client disconnected. Total clients: %d\n", *num_clients);
+		close(sockfd);
+		fds[i].fd=0;
+        fds[i].events=0;
+        fds[i].revents=0;
+		return(0);
+	}
+
+	// Sending message (ECHO)
+	if (send(sockfd, buff, strlen(buff), 0) <= 0) {
+		perror("send");
+		return(-1);
+	}
+
+	printf("Message sent!\n");
+	return(1);
+		
+}
+*/
 
 
 
