@@ -18,7 +18,7 @@
 
 #define MAX_CONN 128
 
-//Gère la déconnexion avec suppression de la liste chainée!
+
 //chaine client head voir initialisation
 
 struct Client {
@@ -40,13 +40,13 @@ int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char in
 
 	// Sending structure
 	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
-		perror("send");
-		return 0;
+		//perror("send");
+		//return 0;
 	}
 	// Sending message 
 	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
-		perror("send");
-		return 0;
+		//perror("send");
+		//return 0;
 	}
 	printf("Message sent!\n");
 	return 1;
@@ -54,7 +54,9 @@ int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char in
 
 int is_connected_client(struct Client * chaine_cli_head, char* client){
 	struct Client * current=chaine_cli_head;
+	printf("nickname %s\n",current->nickname);
     while (current!=NULL) {
+		printf("nickname %s\n",current->nickname);
         if (strcmp(current->nickname, client) == 0) {
             return 1; 
         }
@@ -66,6 +68,7 @@ int is_connected_client(struct Client * chaine_cli_head, char* client){
 
 int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head ){
 	//Verification of unassigned nickname
+	printf("%s\n",chaine_cli_head->nickname);
 	if (is_connected_client(chaine_cli_head, infos)==1){
 		char buff[MSG_LEN]="Nickname already attribuate";
 		return send_struct(sockfd,"\0",NICKNAME_NEW,nick_sender,buff);
@@ -77,7 +80,7 @@ int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],str
     while (current!=NULL) {
         if (current->sockfd==sockfd) {
 			current->nickname=infos;
-            printf("Username has been updated.\n"); 
+            printf("Username has been updated \n"); 
         }
 		current=current->next;
     }
@@ -91,7 +94,7 @@ int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],str
 	}
 
 	//Update username
-	char buff[MSG_LEN]="Your username has been updated.";
+	char buff[MSG_LEN]="Your username has been updated ";
 	strcat(buff, infos); 
 	return send_struct(sockfd,"\0",NICKNAME_NEW,infos,buff);
 }
@@ -106,6 +109,7 @@ int nickname_list(int sockfd,struct Client * chaine_cli_head ){
 			strcat(buff,current->nickname); 
 		current=current->next;
     }
+	printf("list %s\n",buff);
 
 	return send_struct(sockfd,"\0",NICKNAME_LIST,"\0",buff);
 }
@@ -232,14 +236,14 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client * chain
 
 	// Receiving structure
 	if (recv(sockfd, &msgstruct, sizeof(struct message), 0) <= 0) {
-		perror("recv");
-		return 0;
+		//perror("recv");
+		//return 0;
 	}
 
 	// Receiving message
 	if (recv(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
-		perror("recv");
-		return 0;
+		//perror("recv");
+		//return 0;
 	}
 
 	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
@@ -337,7 +341,7 @@ int main(int argc, char *argv[]) {
     fds[0].events = POLLIN;
 
 	
-	struct Client * chaine_cli = NULL;
+	
 	struct Client * chaine_cli_head = NULL;
 	
 	while (1) {
@@ -385,16 +389,18 @@ int main(int argc, char *argv[]) {
 				if(send_struct(new_fd,"\0",NICKNAME_NEW,"\0",buff)==0)
 					exit(EXIT_FAILURE);
 
-                //Cas premier client
-				if (chaine_cli==NULL){
-					chaine_cli=new_client;
+				struct Client * current = chaine_cli_head;
+				//First Client
+				if (current==NULL)
 					chaine_cli_head=new_client;
-				}
-                //Sinon on décale.
+				
 				else{
-					chaine_cli->next=new_client;
-                    chaine_cli=new_client;
+					while (current->next!=NULL)
+						current=current->next;
+					current->next=new_client;
 				}
+				
+				
 
 				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
 
@@ -418,6 +424,7 @@ int main(int argc, char *argv[]) {
                     perror("echo_server");
                     exit(EXIT_FAILURE);
                 }
+				fds[i].revents=0;
             }
         }
     }

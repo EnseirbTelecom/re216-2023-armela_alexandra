@@ -31,30 +31,35 @@ int containsOnlyAlphanumeric(char str[]) {
 //Envoyer une structure
 int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
+
+
+
 	// Filling structure
 	msgstruct.pld_len = strlen(buff);
 	strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
 	msgstruct.type = type;
 	strncpy(msgstruct.infos, infos, strlen(infos));
 
+
 	// Sending structure
 	if (send(sockfd, &msgstruct, sizeof(msgstruct), 0) <= 0) {
-		perror("send");
-		return 0;
+		//perror("send");
+		//return 0;
 	}
 	// Sending message (ECHO)
 	if (send(sockfd, buff, msgstruct.pld_len, 0) <= 0) {
-		perror("send");
-		return 0;
+		//perror("send");
+		//return 0;
 	}
-	printf("Message sent!\n");
+	printf("Message sent! name : %s\n",nick_sender);
 	return 1;
 }
 
 
 // FONCTIONS POUR LE TRAITEMENT D'INFORMATIONS AU CLAVIER
-int nick(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
+int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
+	
 
 	if (infos== NULL){
 		printf("No space between /nick and <your pseudo> \n");
@@ -82,21 +87,21 @@ int nick(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
 		printf("The new nickname should only contain letters of the alphabet or numbers.");
 		return 0;
 	}
-
-	return send_struct(sockfd_server,*my_nickname,NICKNAME_NEW,new_nickname,"\0");
+	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,"\0");
 		
 }
 
 
-int who(int sockfd_server,char** my_nickname){
+int who(int sockfd_server,char my_nickname[NICK_LEN]){
+	printf("who : %s\n",my_nickname);
 
-	if(send_struct(sockfd_server,*my_nickname,NICKNAME_LIST,"\0","\0")==0)
+	if(send_struct(sockfd_server,my_nickname,NICKNAME_LIST,"\0","\0")==0)
 		return 0;
 			
 	return 1;
 }
 
-int whois(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
+int whois(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
 
 	if (infos== NULL){
@@ -125,11 +130,11 @@ int whois(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
 		printf("The nickname should only contain letters of the alphabet or numbers.");
 		return 0;
 	}
-	return send_struct(sockfd_server,*my_nickname,NICKNAME_NEW,nickname,"\0");
+	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,"\0");
 		
 }
 
-int msgall(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
+int msgall(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
 
 	if (infos== NULL){
@@ -141,11 +146,11 @@ int msgall(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
 	infos = strtok(NULL, "");
 	char* msg=infos;
 	
-	return send_struct(sockfd_server,*my_nickname,NICKNAME_NEW,"\0",msg);
+	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,"\0",msg);
 		
 }
 
-int msg(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
+int msg(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
 
 	if (infos== NULL){
@@ -184,7 +189,7 @@ int msg(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
 
 	char* msg=infos;
 
-	return send_struct(sockfd_server,*my_nickname,UNICAST_SEND,nickname,msg);
+	return send_struct(sockfd_server,my_nickname,UNICAST_SEND,nickname,msg);
 }
 
 
@@ -192,7 +197,7 @@ int msg(char buff[MSG_LEN],int sockfd_server,char** my_nickname){
 
 
 
-int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my_nickname) {
+int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char my_nickname[NICK_LEN]) {
 	struct message msgstruct;
 	char buff[MSG_LEN];
 	int n;
@@ -208,27 +213,27 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 		while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
 
 		//NICKNAME_NEW
-		if (strncmp(buff, "/nick ", strlen("/nick ")))
+		if (strncmp(buff, "/nick ", strlen("/nick "))==0)
 			return nick(buff,sockfd_server,my_nickname);		
 			
 		//NICKNAME_LIST
-		if (strncmp(buff, "/who ", strlen("/who ")))
+		if (strncmp(buff, "/who\0", strlen("/who "))==0)
 			return who(sockfd_server,my_nickname);
 		
 		//NICKNAME_IN
-		if (strncmp(buff, "/whois ", strlen("/whois ")))
+		if (strncmp(buff, "/whois ", strlen("/whois "))==0)
 			return whois(buff,sockfd_server,my_nickname);
 		
 		//UNICAST_SEND
-		if (strncmp(buff, "/msgall ", strlen("/msgall ")))
+		if (strncmp(buff, "/msgall ", strlen("/msgall "))==0)
 			return msgall(buff,sockfd_server,my_nickname);
 		
 		//UNICAST_SEND
-		if (strncmp(buff, "/msg ", strlen("/msg ")))
+		if (strncmp(buff, "/msg ", strlen("/msg "))==0)
 			return msg(buff,sockfd_server,my_nickname);
 		
 		//ECHO_SEND
-		return send_struct(sockfd_server,*my_nickname,ECHO_SEND,"\0",buff);
+		return send_struct(sockfd_server,my_nickname,ECHO_SEND,"\0",buff);
 		
 	}
 
@@ -242,13 +247,13 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 
 		// Receiving structure
 		if (recv(sockfd_server, &msgstruct, sizeof(struct message), 0) <= 0) {
-			perror("recv");
-			return 0;
+			//perror("recv");
+			//return 0;
 		}
 		// Receiving message
 		if (recv(sockfd_server, buff, msgstruct.pld_len, 0) <= 0) {
-			perror("recv");
-			return 0;
+			//perror("recv");
+			//return 0;
 		}
 
 		printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n ", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
@@ -257,7 +262,11 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char** my
 		//NICKNAME_NEW
 		if (msgstruct.type == NICKNAME_NEW){
 			printf("[Server]: %s \n", buff);
-			*my_nickname=msgstruct.infos;
+			my_nickname=msgstruct.infos;
+			strncpy(my_nickname, msgstruct.infos, strlen(msgstruct.infos) - 1);
+    		my_nickname[strlen(msgstruct.infos) - 1] = '\0';  // Assurez-vous de terminer correctement la chaîne
+
+			printf("sortie : %s\n",my_nickname);
 			return 1;
 		}
 
@@ -382,7 +391,7 @@ int main(int argc, char *argv[]) {
     fds[1].events = POLLIN;
 
 	int ret;
-	char *my_nickname="\0";
+	char my_nickname[NICK_LEN]="\0";
 
 
 	while (1) {
@@ -396,7 +405,7 @@ int main(int argc, char *argv[]) {
 
 		//si il y a de l'activité sur la socket liée au serveur
 		if ((fds[0].revents & POLLIN) == POLLIN) {
-			ret=echo_client(fds[0].fd,fds[0].fd,fds[1].fd,&my_nickname);
+			ret=echo_client(fds[0].fd,fds[0].fd,fds[1].fd,my_nickname);
 			if (ret==0){
 				perror("echo_client");
 				exit(EXIT_FAILURE);
@@ -406,7 +415,7 @@ int main(int argc, char *argv[]) {
 
 		//si il y a de l'activité sur la socket de l'entrée standard
 		if ((fds[1].revents & POLLIN) == POLLIN) {
-			ret=echo_client(fds[1].fd,fds[0].fd,fds[1].fd,&my_nickname);
+			ret=echo_client(fds[1].fd,fds[0].fd,fds[1].fd,my_nickname);
 			if (ret==0){
 				perror("echo_client");
 				exit(EXIT_FAILURE);
