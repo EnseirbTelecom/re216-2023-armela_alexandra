@@ -32,12 +32,12 @@ int containsOnlyAlphanumeric(char str[]) {
 int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
 
-
-
 	// Filling structure
 	msgstruct.pld_len = strlen(buff);
+	memset(msgstruct.nick_sender, 0, NICK_LEN);
 	strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
 	msgstruct.type = type;
+	memset(msgstruct.infos, 0, INFOS_LEN);
 	strncpy(msgstruct.infos, infos, strlen(infos));
 
 
@@ -51,7 +51,8 @@ int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char in
 		//perror("send");
 		//return 0;
 	}
-	printf("Message sent! name : %s\n",nick_sender);
+	printf("\nMessage sent!\n");
+
 	return 1;
 }
 
@@ -87,7 +88,7 @@ int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		printf("The new nickname should only contain letters of the alphabet or numbers.");
 		return 0;
 	}
-	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,"\0");
+	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,"");
 		
 }
 
@@ -122,12 +123,12 @@ int whois(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 
 	
 	if ((len_nickname<3)||(len_nickname>127)){
-		printf("The nickname size is incorrect; it should be between 3 and 127 characters.");
+		printf("The nickname size is incorrect; it should be between 3 and 127 characters.\n");
 		return 0;
 	}
 
 	if (containsOnlyAlphanumeric(nickname)==0){
-		printf("The nickname should only contain letters of the alphabet or numbers.");
+		printf("The nickname should only contain letters of the alphabet or numbers.\n");
 		return 0;
 	}
 	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,"\0");
@@ -146,7 +147,7 @@ int msgall(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	infos = strtok(NULL, "");
 	char* msg=infos;
 	
-	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,"\0",msg);
+	return send_struct(sockfd_server,my_nickname,BROADCAST_SEND,"\0",msg);
 		
 }
 
@@ -216,19 +217,20 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char my_n
 		if (strncmp(buff, "/nick ", strlen("/nick "))==0)
 			return nick(buff,sockfd_server,my_nickname);		
 			
-		//NICKNAME_LIST
-		if (strncmp(buff, "/who\0", strlen("/who "))==0)
-			return who(sockfd_server,my_nickname);
-		
 		//NICKNAME_IN
 		if (strncmp(buff, "/whois ", strlen("/whois "))==0)
 			return whois(buff,sockfd_server,my_nickname);
+
+		//NICKNAME_LIST
+		if (strncmp(buff, "/who", strlen("/who"))==0)
+			return who(sockfd_server,my_nickname);
 		
+
 		//UNICAST_SEND
 		if (strncmp(buff, "/msgall ", strlen("/msgall "))==0)
 			return msgall(buff,sockfd_server,my_nickname);
 		
-		//UNICAST_SEND
+		//BROADCAST_SEND
 		if (strncmp(buff, "/msg ", strlen("/msg "))==0)
 			return msg(buff,sockfd_server,my_nickname);
 		
@@ -262,49 +264,23 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree,char my_n
 		//NICKNAME_NEW
 		if (msgstruct.type == NICKNAME_NEW){
 			printf("[Server]: %s \n", buff);
-			my_nickname=msgstruct.infos;
-			strncpy(my_nickname, msgstruct.infos, strlen(msgstruct.infos) - 1);
-    		my_nickname[strlen(msgstruct.infos) - 1] = '\0';  // Assurez-vous de terminer correctement la chaîne
-
-			printf("sortie : %s\n",my_nickname);
+			strncpy(my_nickname, msgstruct.infos, strlen(msgstruct.infos));
 			return 1;
 		}
 
 		//NICKNAME_LIST
 		if (msgstruct.type == NICKNAME_LIST){
-			printf("[Server]: Online users are :\n");
-			
-    		char *connected_clients = strtok(buff, "");
-
-   			while (connected_clients != NULL) {
-        		printf("-%s\n", connected_clients);
-        		connected_clients = strtok(NULL, "");
-   			}
+			printf("[Server]: Online users are : \n%s\n",buff);
 			return 1;
 		}
 
-		//NICKNAME_IN
+		//NICKNAME_INFOS
 		if (msgstruct.type ==NICKNAME_INFOS){
-			if (strcmp(msgstruct.infos,"\0")){
-				printf("[Server]: %s connected ",buff);
-				return 1;
-			}
-			
-			printf("[Server]: %s connected ",msgstruct.infos);
-
-    		char *infos_user = strtok(buff, "");
-			//Date 
-			printf("since %s ", infos_user);
-
-			//IP address
-        	infos_user = strtok(NULL, "");
-			printf("with IP address %s ", infos_user);
-
-			//Port number
-			infos_user = strtok(NULL, "");
-			printf("and port number %s \n", infos_user);
+			printf("[Server]: %s ",msgstruct.infos);
+			printf("%s \n",buff);
 			return 1;
 		}
+			
 
 		//UNICAST_SEND
 		if (msgstruct.type ==UNICAST_SEND){
@@ -391,7 +367,7 @@ int main(int argc, char *argv[]) {
     fds[1].events = POLLIN;
 
 	int ret;
-	char my_nickname[NICK_LEN]="\0";
+	char my_nickname[NICK_LEN]="";
 
 
 	while (1) {

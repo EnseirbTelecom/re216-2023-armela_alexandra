@@ -22,7 +22,7 @@ struct Client {
 };
 
 
-int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client * chaine_cli_head) {
+int echo_server(int* num_clients,struct pollfd * fds,int i) {
 	char buff[MSG_LEN];
 	int sockfd=fds[i].fd;
 	
@@ -30,8 +30,13 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client * chain
 	memset(buff, 0, MSG_LEN);
 	// Receiving message
 	if ((recv(sockfd, buff, MSG_LEN, 0) <= 0)) {
+		*num_clients=*num_clients-1;
+		printf("Client disconnected. Total clients: %d\n", *num_clients);
+		close(sockfd);
+		fds[i].fd=0;
+		return(-1);
 		perror("recv");
-		return 0;
+		return(-1);
 	}
 
 	printf("Received: %s", buff);
@@ -43,59 +48,28 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client * chain
 		// Sending closing message (ECHO)
 		if (send(sockfd, buff, strlen(buff), 0) <= 0) {
 			perror("send");
-			return 0;
+			return(-1);
 		}
 
 		printf("Closing message sent!\n");
 		
 		*num_clients=*num_clients-1;
 		printf("Client disconnected. Total clients: %d\n", *num_clients);
-        close(sockfd);
+		close(sockfd);
 		fds[i].fd=0;
         fds[i].events=0;
         fds[i].revents=0;
-
-
-        // Empty chaine
-        if (chaine_cli_head==NULL){
-            return 0;
-        }
-
-		struct Client * current = chaine_cli_head;
-        struct Client * previous = chaine_cli_head;
-
-        
-        while ((current->next!=NULL) && (current->sockfd!=sockfd)){
-            previous=current;
-            current=current->next;
-        }
-
-        // Client not find 
-        if ((current->sockfd!=sockfd)){
-            printf("Client not find \n");
-            return 0;
-        }
-        
-        // First client
-        if (current->sockfd==previous->sockfd){
-            chaine_cli_head=chaine_cli_head->next;
-            return 1;
-        }
-
-        else{
-            previous->next=current->next;	
-            return 1;
-        } 
+		return(0);
 	}
 
 	// Sending message (ECHO)
 	if (send(sockfd, buff, strlen(buff), 0) <= 0) {
 		perror("send");
-		return 0;
+		return(-1);
 	}
 
 	printf("Message sent!\n");
-	return 1 ;
+	return(1);
 		
 }
 
@@ -178,7 +152,7 @@ int main(int argc, char *argv[]) {
     fds[0].fd = sfd;
     fds[0].events = POLLIN;
 
-    struct Client * chaine_cli_head = NULL;
+	struct Client * chaine_cli = NULL;
 
     while (1) {
         // Appel à poll pour attendre de nouveaux événements
@@ -219,19 +193,15 @@ int main(int argc, char *argv[]) {
 				new_client->port=client_addr.sin_port;
                 new_client->next=NULL;
 
-                struct Client * current = chaine_cli_head;
+                //Cas premier client
+				if (chaine_cli==NULL)
+					chaine_cli=new_client;
+                //Sinon on décale.
+				else
+					chaine_cli->next=new_client;
+                    chaine_cli=new_client;
+				
 
-                //First client
-				if (current==NULL)
-                    chaine_cli_head=new_client;
-                
-                else{
-                    while (current->next!=NULL){
-                        current=current->next;
-                    }
-                    current->next=new_client;
-                }
-					
 
 				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
 
@@ -249,8 +219,8 @@ int main(int argc, char *argv[]) {
             // S'il y a de l'activité sur un socket autre que listen_fd, lire les données
             if (fds[i].fd != sfd && (fds[i].revents & POLLIN) == POLLIN) {
                 printf("Activity on socket %d\n", fds[i].fd);
-                int ret=echo_server(&num_clients,fds,i,chaine_cli_head)  ;
-                if (ret==0){
+                int ret=echo_server(&num_clients,fds,i)  ;
+                if (ret==-1){
                     perror("echo_server");
                     exit(EXIT_FAILURE);
                 }

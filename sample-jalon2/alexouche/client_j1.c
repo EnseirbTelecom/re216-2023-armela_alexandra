@@ -21,6 +21,7 @@ int echo_client(int sockfd_active,int sockfd_server, int sockfd_entree) {
 
 	if (sockfd_active==sockfd_entree)
 	{
+		// Cleaning memory
 		memset(buff, 0, MSG_LEN);
 		// Getting message from client
 		n = 0;
@@ -131,7 +132,7 @@ int main(int argc, char *argv[]) {
 
 		//si il y a de l'activité sur la socket de l'entrée standard
 		if ((fds[1].revents & POLLIN) == POLLIN) {
-			echo_client(fds[1].fd,fds[0].fd,fds[1].fd);
+			ret=echo_client(fds[1].fd,fds[0].fd,fds[1].fd);
 			if (ret==-1){
 				perror("echo_client");
 				exit(EXIT_FAILURE);
