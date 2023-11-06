@@ -18,8 +18,6 @@
 
 #define MAX_CONN 128
 
-
-
 struct Client {
     int sockfd;
 	char* nickname;
@@ -73,8 +71,6 @@ void disp_chaine(struct Client * chaine_cli_head){
 		sleep(2);
 		current=current->next;
 	}
-	
-	
 }
 
 
@@ -85,7 +81,6 @@ int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],str
 		char buff[MSG_LEN]="Nickname already attribuate";
 		return send_struct(sockfd,"\0",NICKNAME_NEW,nick_sender,buff);
 	}
-
 
 	//Update client connected list
 	struct Client * current=chaine_cli_head;
@@ -132,7 +127,6 @@ int nickname_list(int sockfd, struct Client *chaine_cli_head) {
 
 
 int nickname_infos(int sockfd,char infos[INFOS_LEN],struct Client * chaine_cli_head){
-	printf("bite\n");
 	char buff[MSG_LEN];
 	memset(buff,0,MSG_LEN);
 	//Client connectivity check
@@ -157,11 +151,8 @@ int nickname_infos(int sockfd,char infos[INFOS_LEN],struct Client * chaine_cli_h
     char time_str[20]; // Assez grand pour contenir une date au format "YYYY/MM/DD@HH:MM"
     strftime(time_str, sizeof(time_str), "%Y/%m/%d@%H:%M", localtime(&(current->connectionTime)));
 
-    // Utiliser sprintf pour formater la chaîne de sortie
+    // Formater la chaîne de sortie
     snprintf(buff, MSG_LEN, "connected since %s with IP address %s and port number %d", time_str, ip_str, current->port);
-
-    // Maintenant, buff contient la chaîne formatée souhaitée
-    printf("Client info: %s\n", buff); // Pour afficher le résultat
 
 
 	return send_struct(sockfd,"\0",NICKNAME_INFOS,infos,buff);
@@ -183,8 +174,6 @@ int broadcast_send(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char
 
 int unicast_send(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
-
-	
 
 	//Send to all connected clients except the sender.
 	while (current!=NULL) {
@@ -346,7 +335,6 @@ int main(int argc, char *argv[]) {
     }
 
 	char *server_port = argv[1];
-
     int sfd = handle_bind(server_port);
 
     if ((listen(sfd, SOMAXCONN)) != 0) {
@@ -365,8 +353,6 @@ int main(int argc, char *argv[]) {
     fds[0].fd = sfd;
     fds[0].events = POLLIN;
 
-	
-	
 	struct Client * chaine_cli_head = NULL;
 	
 	while (1) {
@@ -431,7 +417,6 @@ int main(int argc, char *argv[]) {
 					current->next = new_client;
 				}
 				
-			
 				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
 
                 for (int j = 0; j < MAX_CONN; j++) {
