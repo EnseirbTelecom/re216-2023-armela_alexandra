@@ -381,17 +381,18 @@ int send_file(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	}
 
 	char username[NICK_LEN];
-	strncpy(username, infos, strlen(infos)-1);
+	strncpy(username, infos, strlen(infos));
 	int len_username=strlen(username);
 
 	//Verification du username (taille/alphanumérique)
 	if ((len_username<3)||(len_username>127)){
-		printf("[Warning] : The username size is incorrect; it should be between 3 and 127 characters.");
+		printf("[Warning] : The username size is incorrect; it should be between 3 and 127 characters.\n");
 		return 1;
 	}
 
 	if (containsOnlyAlphanumeric(username)==0){
-		printf("[Warning] : The username should only contain letters of the alphabet or numbers.");
+		printf("[Warning] : The username should only contain letters of the alphabet or numbers.\n");
+		printf("%lu %s\n",strlen(username),username);
 		return 1;
 	}
 
