@@ -361,6 +361,97 @@ int quit(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN], char
 	
 }
 
+//FILE_REQUEST
+int send_file(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
+	char *infos = strtok(buff, " ");
+
+	printf("send\n");
+
+	if (infos== NULL){
+		printf("[Warning] : No space between <username> and <file_path> \n");
+		return 1;
+	}
+
+	//Récupère le username
+	infos = strtok(NULL, " ");
+
+	if (infos== NULL){
+		printf("[Warning] : No username\n");
+		return 1;
+	}
+
+	char username[NICK_LEN];
+	strncpy(username, infos, strlen(infos)-1);
+	int len_username=strlen(username);
+
+	//Verification du username (taille/alphanumérique)
+	if ((len_username<3)||(len_username>127)){
+		printf("[Warning] : The username size is incorrect; it should be between 3 and 127 characters.");
+		return 1;
+	}
+
+	if (containsOnlyAlphanumeric(username)==0){
+		printf("[Warning] : The username should only contain letters of the alphabet or numbers.");
+		return 1;
+	}
+
+	//Récupère le file_path
+	infos = strtok(NULL, "");
+
+	if (infos== NULL){
+		printf("[Warning] : No file_path\n");
+		return 1;
+	}
+	
+	char file_path[NICK_LEN];
+	strncpy(file_path, infos, strlen(infos)-1);
+	int len_file_path=strlen(file_path);
+
+	//Verification du file_path (taille/alphanumérique)
+	if ((len_file_path<3)||(len_file_path>127)){
+		printf("[Warning] : The file_path size is incorrect; it should be between 3 and 127 characters.");
+		return 1;
+	}
+
+	// Vérification que file_path se termine par ".txt"
+	if (strstr(file_path, ".txt") == NULL) {
+		printf("[Warning] : The file_path doesn't finish by \".txt\"\n");
+		return 1;
+	}
+
+
+	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,file_path);
+}
+
+//FILE_ANSWER
+int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[NICK_LEN],char username[NICK_LEN]){
+	while (1) {
+        // Appel à poll pour attendre de nouveaux événements
+        int active_fds = poll(fds, CONN_CLI, -1);
+		if (active_fds<0){
+			perror("poll");
+            exit(EXIT_FAILURE);
+		}
+		//si il y a de l'activité sur la socket de l'entrée standard
+		if ((fds[1].revents & POLLIN) == POLLIN) {
+			char buff[MSG_LEN];
+			// Cleaning memory
+			memset(buff, 0, MSG_LEN);
+			// Getting message from client
+			int n = 0;
+			while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
+
+			if (strncmp(buff, "Y", strlen("Y"))==0)
+				return send_struct(sockfd_server,my_nickname,FILE_ACCEPT,username,"");
+			
+			if (strncmp(buff, "N", strlen("N"))==0)
+				return send_struct(sockfd_server,my_nickname,FILE_REJECT,username,"");
+			
+			printf("[Warning] : Do you accept? [Y/N]\n");
+		}
+	}
+}
+
 
 int help() {
     printf("Available commands:\n");
@@ -435,6 +526,9 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		if (strncmp(buff, "/join ", strlen("/join "))==0)
 			return join(buff,sockfd_server,my_nickname);
 
+		//FILE_REQUEST
+		if (strncmp(buff, "/send ", strlen("/send "))==0)
+			return send_file(buff,sockfd_server,my_nickname);
 		
 		//ECHO_SEND
 		if (strlen(my_salon) == 0){
@@ -567,6 +661,31 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 			printf("[%s] [%s] : %s\n",my_salon, msgstruct.nick_sender,buff);
 			return 1;
 		}
+
+		//FILE_REQUEST
+		if (msgstruct.type == FILE_REQUEST){
+			printf("[Server] : %s wants you to accept the transfer of the file named \"%s\". \nDo you accept? [Y/N]\n",msgstruct.nick_sender,buff);
+			return send_answer(sockfd_server,fds,my_nickname,msgstruct.nick_sender);
+		}
+
+		//FILE_REJECT
+		if (msgstruct.type == FILE_REJECT){
+			printf("[Server] : %s cancelled file transfer.\n",msgstruct.nick_sender);
+			return 1;		
+		}
+
+		//FILE_ACCEPT
+		if (msgstruct.type == FILE_ACCEPT){
+			printf("[Server] : %s accepted file transfert.\n",msgstruct.nick_sender);
+			return 1;		
+		}
+
+		//FILE_ACK
+		if (msgstruct.type == FILE_ACK){
+			printf("[Server] : %s has received the file.\n",msgstruct.nick_sender);
+			return 1;		
+		}
+
 
 	}	
 	return 0;

@@ -439,6 +439,67 @@ int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN]
 
 }
 
+int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
+	struct Client * current=chaine_cli_head;
+
+	//Send to user 
+	while (current!=NULL) {
+		if (strcmp(current->nickname, infos) == 0)
+			return send_struct(current->sockfd,nick_sender,FILE_REQUEST,infos,buff) ;
+			break;
+		current=current->next;
+    }
+	return 1;
+}
+
+int file_reject(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
+	struct Client * current=chaine_cli_head;
+
+	//Send to user 
+	while (current!=NULL) {
+		if (strcmp(current->nickname, infos) == 0)
+			return send_struct(current->sockfd,nick_sender,FILE_REJECT,infos,"") ;
+			break;
+		current=current->next;
+    }
+	return 1;
+}
+
+int file_accept(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
+	struct Client * current=chaine_cli_head;
+	char buff[MSG_LEN];
+	memset(buff,0,MSG_LEN);
+
+	//Send to user 
+	while (current!=NULL) {
+		if (strcmp(current->nickname, infos) == 0){
+			// Convertir l'adresse IP en une chaîne de caractères lisible
+    		char ip_str[INET_ADDRSTRLEN];
+    		inet_ntop(AF_INET, &(current->addr), ip_str, INET_ADDRSTRLEN);
+
+			// Formater la chaîne de sortie
+    		snprintf(buff, MSG_LEN, "%s:%d", ip_str, current->port);
+
+			return send_struct(current->sockfd,nick_sender,FILE_ACCEPT,infos,buff) ;
+		}
+		current=current->next;
+    }
+	return 1;
+}
+
+int file_ack(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
+	struct Client * current=chaine_cli_head;
+
+	//Send to user 
+	while (current!=NULL) {
+		if (strcmp(current->nickname, infos) == 0)
+			return send_struct(current->sockfd,nick_sender,FILE_ACK,infos,"") ;
+			break;
+		current=current->next;
+    }
+	return 1;
+}
+
 int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chaine_cli_head,struct Channel all_channel[MAX_CHANNEL]) {
 	int sockfd=fds[i].fd;
 	
@@ -527,6 +588,22 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 	//MULTICAST_QUIT
 	if (msgstruct.type == MULTICAST_QUIT)
 		return multicast_quit(sockfd,msgstruct.nick_sender,msgstruct.infos,*chaine_cli_head,all_channel);
+	
+	//FILE_REQUEST
+	if (msgstruct.type == FILE_REQUEST)
+		return file_request(sockfd,msgstruct.nick_sender,msgstruct.infos,buff,*chaine_cli_head);
+
+	//FILE_REJECT
+	if (msgstruct.type == FILE_REJECT)
+		return file_reject(sockfd,msgstruct.nick_sender,msgstruct.infos,*chaine_cli_head);
+
+	//FILE_ACCEPT
+	if (msgstruct.type == FILE_ACCEPT)
+		return file_accept(sockfd,msgstruct.nick_sender,msgstruct.infos,*chaine_cli_head);
+	
+	//FILE_ACK
+	if (msgstruct.type == FILE_ACK)
+		return file_ack(sockfd,msgstruct.nick_sender,msgstruct.infos,*chaine_cli_head);
 
 	return 0;
 }
