@@ -12,11 +12,13 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <ctype.h>
+#include <assert.h>
+
 
 #include "common.h"
 #include "msg_struct.h"
 
-
+//Verifier que le fichier existe !
 
 int containsOnlyAlphanumeric(char str[]) {
     for (int i = 0; i < strlen(str)-1; i++)
@@ -362,7 +364,7 @@ int quit(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN], char
 }
 
 //FILE_REQUEST
-int send_file(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
+int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN],char * filename){
 	char *infos = strtok(buff, " ");
 
 	printf("send\n");
@@ -382,6 +384,7 @@ int send_file(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 
 	char username[NICK_LEN];
 	strncpy(username, infos, strlen(infos));
+	strncpy(filename,infos, strlen(infos));
 	int len_username=strlen(username);
 
 	//Verification du username (taille/alphanumérique)
@@ -420,9 +423,64 @@ int send_file(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		return 1;
 	}
 
-
+	printf("File_req\n");
 	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,file_path);
 }
+
+int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname[NICK_LEN],char* file_path){
+	printf("Connecting to %s and sending the file...\n", nickname_recv);
+
+	char *infos = strtok(buff, ":");
+
+	//Récupère l'addr
+	if (infos== NULL){
+		printf("[Warning] : buff not addr:port \n");
+		return 1;
+	}
+
+	char ipaddr[9];
+	memset(ipaddr, 0, 9);
+	strncpy(ipaddr, infos, 9);
+
+	//Récupère le port
+	infos = strtok(NULL, "");
+
+	if (infos== NULL){
+		printf("[Warning] : No port\n");
+		return 1;
+	}
+
+	char port[strlen(infos)];
+	printf("%lu\n",strlen(infos));
+	memset(port, 0, strlen(infos));
+	strncpy(port, infos, strlen(infos));
+
+
+	char*args[6]={"sender",ipaddr,port,my_nickname,"fichier.txt",NULL};
+    
+
+	printf("je suis la  \n");
+	int fils=-1;
+
+    fils=fork();
+    
+    if (fils==0){
+        execv("./sender",args);
+    }
+    else if (fils>0){
+        int child2=-1;
+        child2=wait(NULL);
+        assert(fils=child2);
+    }
+
+    printf("envoie finie \n");
+
+
+	return 1;			
+}
+
+			
+			
 
 //FILE_ANSWER
 int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[NICK_LEN],char username[NICK_LEN]){
@@ -442,17 +500,55 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 			int n = 0;
 			while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
 
-			if (strncmp(buff, "Y", strlen("Y"))==0)
-				return send_struct(sockfd_server,my_nickname,FILE_ACCEPT,username,"");
+			if (strncmp(buff, "Y", strlen("Y"))==0){
+				printf("file accept\n");
+				printf("%s,%s\n",FILE_PORT,FILE_ADDR);
+				char buff2[MSG_LEN];
+				// Cleaning memory
+				memset(buff2, 0, MSG_LEN);
+				
+				sprintf(buff2, "%s:%s",FILE_ADDR, FILE_PORT );
+
+				printf("bite :%s\n",buff2);
+
+				fds[1].revents=0;
+
+				if (send_struct(sockfd_server,my_nickname,FILE_ACCEPT,username,buff2)==0)
+					return 0;
+				
+
+				char*args[3]={"receiver",FILE_PORT,NULL};
+    
+				 int fils=-1;
+
+				fils=fork();
+				
+				if (fils==0){
+					execv("./receiver",args);
+
+				}
+				else if (fils>0){
+					int child2=-1;
+					child2=wait(NULL);
+					assert(fils=child2);
+
+				}
+				
+				
+				printf("reception finie \n");
+
+				return 1;				
+			}
 			
-			if (strncmp(buff, "N", strlen("N"))==0)
+			if (strncmp(buff, "N", strlen("N"))==0){
+				fds[1].revents=0;
+				printf("file reject\n");
 				return send_struct(sockfd_server,my_nickname,FILE_REJECT,username,"");
-			
+			}
 			printf("[Warning] : Do you accept? [Y/N]\n");
 		}
 	}
 }
-
 
 int help() {
     printf("Available commands:\n");
@@ -471,7 +567,7 @@ int help() {
 	return 1;
 }
 
-int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server, int sockfd_entree,char my_nickname[NICK_LEN], char my_salon[NICK_LEN]) {
+int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server, int sockfd_entree,char my_nickname[NICK_LEN], char my_salon[NICK_LEN],char* filename) {
 	struct message msgstruct;
 	char buff[MSG_LEN];
 	int n;
@@ -529,7 +625,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 
 		//FILE_REQUEST
 		if (strncmp(buff, "/send ", strlen("/send "))==0)
-			return send_file(buff,sockfd_server,my_nickname);
+			return file_request(buff,sockfd_server,my_nickname,filename);
 		
 		//ECHO_SEND
 		if (strlen(my_salon) == 0){
@@ -672,13 +768,14 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		//FILE_REJECT
 		if (msgstruct.type == FILE_REJECT){
 			printf("[Server] : %s cancelled file transfer.\n",msgstruct.nick_sender);
+			strncpy(filename,"", strlen(""));
 			return 1;		
 		}
 
 		//FILE_ACCEPT
 		if (msgstruct.type == FILE_ACCEPT){
 			printf("[Server] : %s accepted file transfert.\n",msgstruct.nick_sender);
-			return 1;		
+			return file_accept(msgstruct.nick_sender,buff,my_nickname,filename);
 		}
 
 		//FILE_ACK
@@ -692,13 +789,13 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 	return 0;
 }
 
-int handle_connect(char * server_name,char * server_port) {
+int handle_connect(char* client_port,char* client_addr) {
 	struct addrinfo hints, *result, *rp;
 	int sfd;
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo(server_name, server_port, &hints, &result) != 0) {
+	if (getaddrinfo(client_addr, client_port, &hints, &result) != 0) {
 		perror("getaddrinfo()");
 		exit(EXIT_FAILURE);
 	}
@@ -721,6 +818,7 @@ int handle_connect(char * server_name,char * server_port) {
 }
 
 int main(int argc, char *argv[]) {
+	
 	if (argc != 3) {
         fprintf(stderr, "Usage: %s <server_name> <server_port>\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -730,7 +828,7 @@ int main(int argc, char *argv[]) {
 	char * server_port=argv[2];
 
 	int sfd;
-	sfd = handle_connect(server_name,server_port);
+	sfd = handle_connect(server_port,server_name);
 	printf("Connecting to server ... done!\n");
 	
 
@@ -749,6 +847,7 @@ int main(int argc, char *argv[]) {
 	int ret;
 	char my_salon[NICK_LEN] = "";
 	char my_nickname[NICK_LEN]="";
+	char filename[NICK_LEN]="";
 
 	help();
 
@@ -764,7 +863,7 @@ int main(int argc, char *argv[]) {
 
 		//si il y a de l'activité sur la socket liée au serveur
 		if ((fds[0].revents & POLLIN) == POLLIN) {
-			ret=echo_client(fds,fds[0].fd,fds[0].fd,fds[1].fd,my_nickname, my_salon);
+			ret=echo_client(fds,fds[0].fd,fds[0].fd,fds[1].fd,my_nickname, my_salon,filename);
 			if (ret==0){
 				perror("echo_client");
 				exit(EXIT_FAILURE);
@@ -773,7 +872,7 @@ int main(int argc, char *argv[]) {
 
 		//si il y a de l'activité sur la socket de l'entrée standard
 		if ((fds[1].revents & POLLIN) == POLLIN) {
-			ret=echo_client(fds,fds[1].fd,fds[0].fd,fds[1].fd,my_nickname, my_salon);
+			ret=echo_client(fds,fds[1].fd,fds[0].fd,fds[1].fd,my_nickname, my_salon,filename);
 			if (ret==0){
 				perror("echo_client");
 				exit(EXIT_FAILURE);

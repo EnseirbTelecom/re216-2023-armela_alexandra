@@ -442,11 +442,14 @@ int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN]
 int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
 
+	printf("fichier envoyé à %s\n",infos);
+
 	//Send to user 
 	while (current!=NULL) {
-		if (strcmp(current->nickname, infos) == 0)
+		if (strcmp(current->nickname, infos) == 0){
+			printf("message envoyé à %s\n",current->nickname);
 			return send_struct(current->sockfd,nick_sender,FILE_REQUEST,infos,buff) ;
-			break;
+		}	
 		current=current->next;
     }
 	return 1;
@@ -457,29 +460,21 @@ int file_reject(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],stru
 
 	//Send to user 
 	while (current!=NULL) {
-		if (strcmp(current->nickname, infos) == 0)
+		if (strcmp(current->nickname, infos) == 0){
+			printf("send to %s \n",current->nickname);
 			return send_struct(current->sockfd,nick_sender,FILE_REJECT,infos,"") ;
-			break;
+		}
 		current=current->next;
     }
 	return 1;
 }
 
-int file_accept(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
+int file_accept(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN], char buff[MSG_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
-	char buff[MSG_LEN];
-	memset(buff,0,MSG_LEN);
 
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
-			// Convertir l'adresse IP en une chaîne de caractères lisible
-    		char ip_str[INET_ADDRSTRLEN];
-    		inet_ntop(AF_INET, &(current->addr), ip_str, INET_ADDRSTRLEN);
-
-			// Formater la chaîne de sortie
-    		snprintf(buff, MSG_LEN, "%s:%d", ip_str, current->port);
-
 			return send_struct(current->sockfd,nick_sender,FILE_ACCEPT,infos,buff) ;
 		}
 		current=current->next;
@@ -599,7 +594,7 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 
 	//FILE_ACCEPT
 	if (msgstruct.type == FILE_ACCEPT)
-		return file_accept(sockfd,msgstruct.nick_sender,msgstruct.infos,*chaine_cli_head);
+		return file_accept(sockfd,msgstruct.nick_sender,msgstruct.infos,buff,*chaine_cli_head);
 	
 	//FILE_ACK
 	if (msgstruct.type == FILE_ACK)
@@ -682,7 +677,8 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < MAX_CONN; i++) {
             // S'il y a de l'activité sur fds, accepter une nouvelle connexion
             if (fds[i].fd == sfd && (fds[i].revents & POLLIN) == POLLIN) {
-                
+                printf("Nv client \n");
+				disp_chaine(chaine_cli_head);
                 // Accepter la nouvelle connexion et ajouter le nouveau descripteur de fichier dans le tableau fds
                 struct sockaddr_in client_addr;
                 socklen_t len = sizeof(client_addr);
