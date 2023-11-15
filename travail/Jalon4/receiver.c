@@ -74,7 +74,6 @@ int received_file(int sockfd){
         perror("Erreur lors de l'ouverture du fichier");
         return 0;
     }
-    printf("bite\n");
 
 	int nb_buff = msgstruct.pld_len / MSG_LEN +1;
 
@@ -85,8 +84,6 @@ int received_file(int sockfd){
             bytesToRecv=msgstruct.pld_len % MSG_LEN;
         else
             bytesToRecv=MSG_LEN;
-
-        printf("bytesToRead : %d\n",bytesToRecv);
 
 		while (totalMsgBytesReceived < bytesToRecv) {
 			ssize_t msgBytesReceived = recv(sockfd, buff + totalMsgBytesReceived, bytesToRecv - totalMsgBytesReceived, 0);
@@ -109,7 +106,6 @@ int received_file(int sockfd){
 		}
         
 	}
-    printf("bite\n");
     close(fd);
 	return 1;
 
@@ -125,7 +121,6 @@ int main(int argc, char *argv[]){
 
 	char *server_port = argv[1];
 
-    printf("server_port %s\n",server_port);
 
     struct sockaddr cli;
 	int sfd, connfd;
@@ -133,14 +128,11 @@ int main(int argc, char *argv[]){
 
     sfd = handle_bind(server_port);
 
-    printf("bite hey\n");
 
     if ((listen(sfd, SOMAXCONN)) != 0) {
 		perror("listen()\n");
 		return 0 ;
 	}
-
-    printf("bite hey\n");
 
 	len = sizeof(cli);
 	if ((connfd = accept(sfd, (struct sockaddr*) &cli, &len)) < 0) {
@@ -152,7 +144,6 @@ int main(int argc, char *argv[]){
 
 	received_file(connfd);
 	close(sfd);
-    printf("bite2\n");
 	exit(EXIT_SUCCESS);
 
 }

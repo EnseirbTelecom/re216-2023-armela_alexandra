@@ -367,8 +367,6 @@ int quit(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN], char
 int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN],char * filename){
 	char *infos = strtok(buff, " ");
 
-	printf("send\n");
-
 	if (infos== NULL){
 		printf("[Warning] : No space between <username> and <file_path> \n");
 		return 1;
@@ -395,7 +393,6 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 
 	if (containsOnlyAlphanumeric(username)==0){
 		printf("[Warning] : The username should only contain letters of the alphabet or numbers.\n");
-		printf("%lu %s\n",strlen(username),username);
 		return 1;
 	}
 
@@ -423,7 +420,6 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 		return 1;
 	}
 
-	printf("File_req\n");
 	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,file_path);
 }
 
@@ -451,7 +447,6 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
 	}
 
 	char port[strlen(infos)];
-	printf("%lu\n",strlen(infos));
 	memset(port, 0, strlen(infos));
 	strncpy(port, infos, strlen(infos));
 
@@ -459,7 +454,6 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
 	char*args[6]={"sender",ipaddr,port,my_nickname,"fichier.txt",NULL};
     
 
-	printf("je suis la  \n");
 	int fils=-1;
 
     fils=fork();
@@ -472,9 +466,7 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
         child2=wait(NULL);
         assert(fils=child2);
     }
-
-    printf("envoie finie \n");
-
+    printf("\n [Info] : File sending complete \n");
 
 	return 1;			
 }
@@ -501,15 +493,12 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 			while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
 
 			if (strncmp(buff, "Y", strlen("Y"))==0){
-				printf("file accept\n");
-				printf("%s,%s\n",FILE_PORT,FILE_ADDR);
+
 				char buff2[MSG_LEN];
 				// Cleaning memory
 				memset(buff2, 0, MSG_LEN);
 				
 				sprintf(buff2, "%s:%s",FILE_ADDR, FILE_PORT );
-
-				printf("bite :%s\n",buff2);
 
 				fds[1].revents=0;
 
@@ -535,14 +524,13 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 				}
 				
 				
-				printf("reception finie \n");
+				printf("\n [Info] : File reception complete \n");
 
 				return 1;				
 			}
 			
 			if (strncmp(buff, "N", strlen("N"))==0){
 				fds[1].revents=0;
-				printf("file reject\n");
 				return send_struct(sockfd_server,my_nickname,FILE_REJECT,username,"");
 			}
 			printf("[Warning] : Do you accept? [Y/N]\n");

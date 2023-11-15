@@ -237,12 +237,6 @@ int echo_send(int sockfd,int * num_clients,int i,struct pollfd * fds,enum msg_ty
         }
 		removeClient(chaine_cli_head,sockfd);
 
-		if (chaine_cli_head==NULL)
-		{
-			printf("bite\n");
-		}
-		
-
 		// Sending closing message 
 		if (send_struct(sockfd,"",type,infos,buff)==0)
 			return 0;
@@ -442,12 +436,9 @@ int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN]
 int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
 
-	printf("fichier envoyé à %s\n",infos);
-
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
-			printf("message envoyé à %s\n",current->nickname);
 			return send_struct(current->sockfd,nick_sender,FILE_REQUEST,infos,buff) ;
 		}	
 		current=current->next;
@@ -461,7 +452,6 @@ int file_reject(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],stru
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
-			printf("send to %s \n",current->nickname);
 			return send_struct(current->sockfd,nick_sender,FILE_REJECT,infos,"") ;
 		}
 		current=current->next;
@@ -677,8 +667,6 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < MAX_CONN; i++) {
             // S'il y a de l'activité sur fds, accepter une nouvelle connexion
             if (fds[i].fd == sfd && (fds[i].revents & POLLIN) == POLLIN) {
-                printf("Nv client \n");
-				disp_chaine(chaine_cli_head);
                 // Accepter la nouvelle connexion et ajouter le nouveau descripteur de fichier dans le tableau fds
                 struct sockaddr_in client_addr;
                 socklen_t len = sizeof(client_addr);

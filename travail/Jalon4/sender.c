@@ -93,7 +93,6 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
     char buffer[MSG_LEN];
     memset(buffer, 0, MSG_LEN);
 	int nb_buff = file_size / MSG_LEN +1;
-	printf("nb_buff : %d\n",nb_buff);
     
 	for (int i = 0; i < nb_buff; i++){
 		int bytesRead=0;
@@ -103,7 +102,6 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
         else
             bytesToRead=MSG_LEN;
 
-        printf("bytesToRead : %d\n",bytesToRead);
 		while (bytesRead < bytesToRead ) {
 			int offset=read(fd, buffer, bytesToRead);
 			if (offset<=0){
@@ -124,7 +122,6 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
 			}
 			totalBytesSent += bytesSent;
 		}
-        printf("bite %s\n",buffer);
 	}
     close(fd);
     return 1; // Succès
@@ -136,7 +133,6 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "Usage: %s <server_name> <server_port> <nickname> <filepath>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-    printf("bbbb %s,%s\n",argv[3],argv[4]);
 
 	char * client_name=argv[1];
 	char * client_port=argv[2];
@@ -148,7 +144,7 @@ int main(int argc, char *argv[]){
 	
     printf("... Connecting to client ... done!\n");
     
-    int ret=send_file(sfd,nickname,filepath);
+    send_file(sfd,nickname,filepath);
 	
     close(sfd);
 
