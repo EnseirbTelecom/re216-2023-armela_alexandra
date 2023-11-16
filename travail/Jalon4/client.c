@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <ctype.h>
 #include <assert.h>
+#include <sys/wait.h>
 
 
 #include "common.h"
@@ -100,13 +101,16 @@ int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		printf("[Warning] : The new nickname should only contain letters of the alphabet or numbers.\n");
 		return 1;
 	}
-	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,"");
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,empty);
 		
 }
 
 int who(int sockfd_server,char my_nickname[NICK_LEN]){
-
-	if(send_struct(sockfd_server,my_nickname,NICKNAME_LIST,"","")==0)
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+	if(send_struct(sockfd_server,my_nickname,NICKNAME_LIST,empty,empty)==0)
 		return 0;
 			
 	return 1;
@@ -143,7 +147,9 @@ int whois(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		printf("[Warning] : The nickname should only contain letters of the alphabet or numbers.\n");
 		return 1;
 	}
-	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,"");
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,empty);
 		
 }
 
@@ -158,8 +164,9 @@ int msgall(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	//Récupère le message
 	infos = strtok(NULL, "");
 	char* msg=infos;
-	
-	return send_struct(sockfd_server,my_nickname,BROADCAST_SEND,"",msg);
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+	return send_struct(sockfd_server,my_nickname,BROADCAST_SEND,empty,msg);
 		
 }
 
@@ -239,19 +246,26 @@ int create(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN], char
 		printf("[Warning] : The new chanel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	if (strlen(my_salon)!=0){
-		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,"")==0)
+		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,empty)==0)
 			return 0;	
 	}
 	
-	return send_struct(sockfd_server,my_nickname,MULTICAST_CREATE,new_chanel_name,"");
+	return send_struct(sockfd_server,my_nickname,MULTICAST_CREATE,new_chanel_name,empty);
 	
 }
 
 //MULTICAST_LIST 
 int list(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN]){
 
-	if(send_struct(sockfd_server,my_nickname,MULTICAST_LIST,"","")==0)
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
+	if(send_struct(sockfd_server,my_nickname,MULTICAST_LIST,empty,empty)==0)
 		return 0;
 			
 	return 1;
@@ -288,7 +302,10 @@ int channel_members(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK
 		printf("[Warning] : The new chanel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
-	return send_struct(sockfd_server,my_nickname,MULTICAST_MEMBERS,chanel_name,"");
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
+	return send_struct(sockfd_server,my_nickname,MULTICAST_MEMBERS,chanel_name,empty);
 	
 }
 
@@ -323,12 +340,16 @@ int join(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN],char*
 		printf("[Warning] : The channel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	if (strlen(my_salon)!=0){
-		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,"")==0)
+		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,empty)==0)
 			return 0;	
 	}
 
-	return send_struct(sockfd_server,my_nickname,MULTICAST_JOIN,new_chanel_name,"");
+	return send_struct(sockfd_server,my_nickname,MULTICAST_JOIN,new_chanel_name,empty);
 	
 }
 
@@ -371,7 +392,11 @@ int quit(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN], char
 		printf("[Warning] : The new chanel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
-	return send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,chanel_name_quited,"");
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
+	return send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,chanel_name_quited,empty);
 	
 }
 
@@ -440,7 +465,11 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 		return 1;
     } 
 
-	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,file_path);
+	char f[MSG_LEN];
+	memset(f,0,strlen(f));
+	strncpy(f,file_path,strlen(file_path));
+
+	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,f);
 }
 
 int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname[NICK_LEN],char* file_path){
@@ -485,7 +514,7 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
     else if (fils>0){
         int child2=-1;
         child2=wait(NULL);
-        assert(fils=child2);
+        assert(fils==child2);
     }
     printf("\n [Info] : File sending complete \n");
 
@@ -494,6 +523,9 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
 	
 //FILE_ANSWER
 int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[NICK_LEN],char username[NICK_LEN]){
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	while (1) {
         // Appel à poll pour attendre de nouveaux événements
         int active_fds = poll(fds, CONN_CLI, -1);
@@ -537,18 +569,18 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 				else if (fils>0){
 					int child2=-1;
 					child2=wait(NULL);
-					assert(fils=child2);
+					assert(fils==child2);
 
 				}
 				
 				printf("\n [INFOS] : File reception complete \n");
 
-				return send_struct(sockfd_server,my_nickname,FILE_ACK,username,"");		
+				return send_struct(sockfd_server,my_nickname,FILE_ACK,username,empty);		
 			}
 			
 			if (strncmp(buff, "N", strlen("N"))==0){
 				fds[1].revents=0;
-				return send_struct(sockfd_server,my_nickname,FILE_REJECT,username,"");
+				return send_struct(sockfd_server,my_nickname,FILE_REJECT,username,empty);
 			}
 			printf("[Warning] : Do you accept? [Y/N]\n");
 		}
@@ -576,6 +608,8 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 	struct message msgstruct;
 	char buff[MSG_LEN];
 	int n;
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 
 	//TRAITEMENT DES INFORMATIONS CLAVIER
 	if (sockfd_active==sockfd_entree)
@@ -587,6 +621,10 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		n = 0;
 		while ((buff[n++] = getchar()) != '\n') {} // trailing '\n' will be sent
 
+		//KILL_SERVER
+		if (strncmp(buff, "/kill", strlen("/kill"))==0)
+			return send_struct(sockfd_server,my_nickname,KILL_SERVER,empty,empty);		
+		
 		//HELP
 		if (strncmp(buff, "/help", strlen("/help"))==0)
 			return help();		
@@ -631,10 +669,10 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		//FILE_REQUEST
 		if (strncmp(buff, "/send ", strlen("/send "))==0)
 			return file_request(buff,sockfd_server,my_nickname,filename);
-		
+
 		//ECHO_SEND
 		if (strlen(my_salon) == 0){
-			return send_struct(sockfd_server,my_nickname,ECHO_SEND,"\0",buff);
+			return send_struct(sockfd_server,my_nickname,ECHO_SEND,empty,buff);
 		}
 
 		//MULTICAST_QUIT
@@ -677,7 +715,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		}
 
 
-		//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n ", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+		printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n ", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 		
 
 		//NICKNAME_NEW
@@ -718,7 +756,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 			printf("[Server]: %s \n", buff);
 			//Close connexion accepted
 			if (strcmp(buff, "/quit\n") == 0) {
-            	printf("Server accepted the request to close the connection. Closing...\n");
+            	printf("Server close the connection. Closing...\n");
             	close(sockfd_server);  // Ferme la connexion du client.
             	exit(EXIT_SUCCESS);  // Arrête le programme client.
        		}
@@ -780,7 +818,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		//FILE_REJECT
 		if (msgstruct.type == FILE_REJECT){
 			printf("[Server] : %s cancelled file transfer.\n",msgstruct.nick_sender);
-			strncpy(filename,"", strlen(""));
+			memset(filename,0, strlen(filename));
 			return 1;		
 		}
 

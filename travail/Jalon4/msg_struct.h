@@ -19,7 +19,8 @@ enum msg_type {
 	FILE_REJECT,
 	FILE_SEND,
 	FILE_ACK,
-	HELP
+	HELP,
+	KILL_SERVER
 };
 
 struct message {
@@ -47,6 +48,7 @@ static char* msg_type_str[] = {
 	"FILE_REJECT",
 	"FILE_SEND",
 	"FILE_ACK",
-	"HELP"
+	"HELP",
+	"KILL_SERVER"
 };
 

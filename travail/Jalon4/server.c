@@ -16,6 +16,23 @@
 #include "common.h"
 #include "msg_struct.h"
 
+// Fonction pour libérer la mémoire d'un canal
+void freeChannel(struct Channel *all_channel) {
+    if (all_channel) {
+        free(all_channel->name);
+        free(all_channel);
+    }
+}
+
+// Fonction pour libérer la mémoire d'un client
+void freeClient(struct Client *c) {
+    if (c) {
+        free(c->nickname);
+        free(c);
+    }
+}
+
+
 
 int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
@@ -134,7 +151,8 @@ void removeClient(struct Client** head, int sockfd) {
             }
             free(current->nickname); // Free the dynamically allocated nickname.
             free(current->salon);    // Free the dynamically allocated salon.
-            free(current);           // Free the client struct itself.
+            free(current);// Free the client struct itself.
+			          
             return;
         }
         prev = current;
@@ -145,9 +163,11 @@ void removeClient(struct Client** head, int sockfd) {
 int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head ){
 	//Verification of unassigned nickname
 
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 	if (is_connected_client(chaine_cli_head, infos)==1){
 		char buff[MSG_LEN]="Nickname already attribuate";
-		return send_struct(sockfd,"",NICKNAME_NEW,nick_sender,buff);
+		return send_struct(sockfd,empty,NICKNAME_NEW,nick_sender,buff);
 	}
 
 	//Update client connected list
@@ -167,17 +187,20 @@ int nickname_new(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],str
 	if (nick_sender[0]=='\0'){
 		char buff[MSG_LEN]="Welcome on the chat ";
 		strcat(buff, infos); 
-		return send_struct(sockfd,"\0",NICKNAME_NEW,infos,buff);
+		return send_struct(sockfd,empty,NICKNAME_NEW,infos,buff);
 	}
 
 	//Update username
 	char buff[MSG_LEN]="Your username has been updated ";
 	strcat(buff, infos); 
-	return send_struct(sockfd,"\0",NICKNAME_NEW,infos,buff);
+	return send_struct(sockfd,empty,NICKNAME_NEW,infos,buff);
 }
 
 int nickname_list(int sockfd, struct Client *chaine_cli_head) {
     struct Client *current = chaine_cli_head;
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 
     // Liste des clients en ligne
     char buff[MSG_LEN];
@@ -191,16 +214,19 @@ int nickname_list(int sockfd, struct Client *chaine_cli_head) {
 		current = current->next;
 	}
 
-    return send_struct(sockfd, "", NICKNAME_LIST, "", buff);
+    return send_struct(sockfd, empty, NICKNAME_LIST, empty, buff);
 }
 
 int nickname_infos(int sockfd,char infos[INFOS_LEN],struct Client * chaine_cli_head){
 	char buff[MSG_LEN];
 	memset(buff,0,MSG_LEN);
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	//Client connectivity check
 	if (is_connected_client(chaine_cli_head, infos)==0){
 		strcpy(buff,"not connected");
-		return send_struct(sockfd,"\0",NICKNAME_INFOS,infos,buff);
+		return send_struct(sockfd,empty,NICKNAME_INFOS,infos,buff);
 	}
 
 	//Find information about the client
@@ -223,7 +249,7 @@ int nickname_infos(int sockfd,char infos[INFOS_LEN],struct Client * chaine_cli_h
     snprintf(buff, MSG_LEN, "connected since %s with IP address %s and port number %d", time_str, ip_str, current->port);
 
 
-	return send_struct(sockfd,"\0",NICKNAME_INFOS,infos,buff);
+	return send_struct(sockfd,empty,NICKNAME_INFOS,infos,buff);
 }
 
 int broadcast_send(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
@@ -249,11 +275,52 @@ int unicast_send(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char i
 			return send_struct(current->sockfd,nick_sender,type,infos,buff) ;
 		current=current->next;
     }
+	char server[NICK_LEN];
+	memset(server,0,NICK_LEN);
+	strncpy(server,"Server",strlen("Server")+1);
 
-	return send_struct(sockfd,"Server",type,infos, "Client doesn't exist");
+	char buff2[MSG_LEN];
+	memset(buff2,0,MSG_LEN);
+	strncpy(buff2,"Client doesn't exist",strlen("Client doesn't exist")+1);
+	
+	
+	return send_struct(sockfd,server,type,infos, buff2);
+}
+
+int kill_server(int * num_clients,struct pollfd * fds,struct Client ** chaine_cli_head){
+	printf("Client requested to kill the server. Closing...\n");
+	
+	char buff[MSG_LEN];
+	memset(buff,0,MSG_LEN);
+	strncpy(buff,"/quit\n",strlen("/quit\n")+1);
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+	
+	// Empty chaine
+    if (*chaine_cli_head==NULL){
+      	return 0;
+    }
+
+	struct Client * current=*chaine_cli_head;
+
+	//Send to all connected clients except the sender.
+	while (current!=NULL) {
+		if (send_struct(current->sockfd,empty,ECHO_SEND,empty,buff)==0)
+			return 0;
+		int sockfd=current->sockfd;
+		current=current->next;
+		removeClient(chaine_cli_head,sockfd);
+		close(sockfd);
+    }
+	return 2;
+
 }
 
 int echo_send(int sockfd,int * num_clients,int i,struct pollfd * fds,enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN],struct Client ** chaine_cli_head){
+
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 
 	//If message = "/quit"
 	if (strcmp(buff, "/quit\n") == 0) {
@@ -266,7 +333,7 @@ int echo_send(int sockfd,int * num_clients,int i,struct pollfd * fds,enum msg_ty
 		removeClient(chaine_cli_head,sockfd);
 
 		// Sending closing message 
-		if (send_struct(sockfd,"",type,infos,buff)==0)
+		if (send_struct(sockfd,empty,type,infos,buff)==0)
 			return 0;
 
 		printf("Closing message sent!\n");
@@ -276,19 +343,20 @@ int echo_send(int sockfd,int * num_clients,int i,struct pollfd * fds,enum msg_ty
 		printf("Client disconnected. Total clients: %d\n", *num_clients);
 
 		close(sockfd);
-		fds[i].fd=0;
+		fds[i].fd=-1;
         fds[i].events=0;
         fds[i].revents=0;
 		return 1;
 
 	}
 
-	return send_struct(sockfd,"",type,infos,buff);
+	return send_struct(sockfd,empty,type,infos,buff);
 }
 
 int multicast_members(int sockfd, char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client *chaine_cli_head) {
     struct Client *current = chaine_cli_head;
-
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
     // Liste des clients en ligne
     char buff[MSG_LEN];
     memset(buff, 0, MSG_LEN);
@@ -301,13 +369,15 @@ int multicast_members(int sockfd, char nick_sender[NICK_LEN],char infos[INFOS_LE
 		current = current->next;
 	}
 
-    return send_struct(sockfd, "", MULTICAST_MEMBERS, infos, buff);
+    return send_struct(sockfd, empty, MULTICAST_MEMBERS, infos, buff);
 }
 
 int multicast_list(int sockfd,struct Channel all_channel[MAX_CHANNEL]){
 	char buff[MSG_LEN];
 	memset(buff,0,MSG_LEN);
 
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 
 	//Find the channel
 	for (int i_channel = 0; i_channel < MAX_CHANNEL; i_channel++){
@@ -317,7 +387,7 @@ int multicast_list(int sockfd,struct Channel all_channel[MAX_CHANNEL]){
 		}
 	}
 
-    return send_struct(sockfd, "", MULTICAST_LIST, "", buff);
+    return send_struct(sockfd, empty, MULTICAST_LIST, empty, buff);
 }
 
 int multicast_send(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
@@ -335,6 +405,9 @@ int multicast_send(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],c
 }
 
 int multicast_quit(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head,struct Channel all_channel[MAX_CHANNEL]){
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	//Update Client list
 	//Find the client in the list
 	struct Client* current = chaine_cli_head;
@@ -367,27 +440,46 @@ int multicast_quit(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],s
 		sprintf(buff, "You were the last user in this channel, %s has been destroyed", infos);
 		free(all_channel[i_channel].name);
 		all_channel[i_channel].name= malloc(NICK_LEN*sizeof(char));
-		return send_struct(sockfd,"INFOS",MULTICAST_QUIT,"",buff) ;
+		
+		char sender[NICK_LEN];
+		memset(sender,0,NICK_LEN);
+		strncpy(sender, "INFOS", strlen("INFOS")+1);
+		
+		return send_struct(sockfd,sender,MULTICAST_QUIT,empty,buff) ;
 	}
 
 
 	else{
 		//Inform of the deconnexion
 		sprintf(buff, "%s quit the Channel", current->nickname);
-		if (multicast_send(sockfd,"INFOS",infos,buff,chaine_cli_head)==0)
+		
+		char sender[NICK_LEN];
+		memset(sender,0,NICK_LEN);
+		strncpy(sender, "INFOS", strlen("INFOS")+1);
+
+		char buff[MSG_LEN];
+		memset(buff,0,MSG_LEN);
+		strncpy(buff, "You are disconnected", strlen("You are disconnected")+1);
+
+		if (multicast_send(sockfd,sender,infos,buff,chaine_cli_head)==0)
 			return 0;
-		return send_struct(sockfd,"INFOS",MULTICAST_QUIT,"","You are disconnected") ;
+		return send_struct(sockfd,sender,MULTICAST_QUIT,empty,buff) ;
 	}
 }
 	
 int multicast_join(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head,struct Channel all_channel[MAX_CHANNEL]){
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 	//Find the channel
 	int i_channel;
 	for ( i_channel = 0; i_channel < MAX_CHANNEL; i_channel++){
 		if (strcmp(all_channel[i_channel].name, infos) == 0) 
             break;
 		if (i_channel==MAX_CHANNEL-1){
-			return send_struct(sockfd,"",ECHO_SEND,"","No channel found") ;
+			char buff[MSG_LEN];
+			memset(buff,0,MSG_LEN);
+			strncpy(buff, "No channel found",strlen("No channel found")+1);
+			return send_struct(sockfd,empty,ECHO_SEND,empty,buff) ;
 		}
 	}
 
@@ -424,20 +516,31 @@ int multicast_join(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],s
 	char buff[MSG_LEN];
 	memset(buff,0,MSG_LEN);
 	sprintf(buff, "%s join the Channel", nick_sender);
-	if (multicast_send(sockfd,"INFOS",infos,buff,chaine_cli_head)==0)
+	
+	char sender[NICK_LEN];
+	memset(sender,0,NICK_LEN);
+	strncpy(sender, "INFOS",strlen("INFOS")+1);
+
+	if (multicast_send(sockfd,sender,infos,buff,chaine_cli_head)==0)
 		return 0;
 	sprintf(buff, "You have joined %s ", infos);
-	return send_struct(sockfd,"INFOS",MULTICAST_JOIN,infos,buff) ;
+	return send_struct(sockfd,sender,MULTICAST_JOIN,infos,buff) ;
 }
 
 int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head,struct Channel all_channel[MAX_CHANNEL]){
 	char buff[MSG_LEN];
 	memset(buff,0,MSG_LEN);
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 
+	char sender[NICK_LEN];
+	memset(sender,0,NICK_LEN);
+	strncpy(sender, "INFOS",strlen("INFOS")+1);
+	
 	//Existing channel
 	if (is_existing_channel(all_channel,infos)==1){
 		strcpy(buff,"Channel already exists");
-		return send_struct(sockfd,"INFOS",MULTICAST_CREATE,"",buff);
+		return send_struct(sockfd,sender,MULTICAST_CREATE,empty,buff);
 	}
 	
 
@@ -450,10 +553,14 @@ int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN]
 			break;
 		}
 
+		char sender[NICK_LEN];
+		memset(sender,0,NICK_LEN);
+		strncpy(sender, "INFOS",strlen("INFOS")+1);
+
 		//No free channels
 		if (i_new_channel==MAX_CHANNEL-1){
 			strcpy(buff,"No free channels");
-			return send_struct(sockfd,"INFOS",MULTICAST_CREATE,"",buff);
+			return send_struct(sockfd,sender,MULTICAST_CREATE,empty,buff);
 		}	
 	}
 
@@ -464,6 +571,14 @@ int multicast_create(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN]
 int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],char buff[MSG_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
 
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
+
+	char BUFF[MSG_LEN];
+	memset(BUFF,0,MSG_LEN);
+	strncpy(BUFF, "Client doesn't exist.",strlen("Client doesn't exist.")+1);
+
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
@@ -471,16 +586,19 @@ int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],cha
 		}	
 		current=current->next;
     }
-	return send_struct(sockfd,"",ECHO_SEND,"","Client doesn't exist.") ;
+	return send_struct(sockfd,empty,ECHO_SEND,empty,BUFF) ;
 }
 
 int file_reject(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
 
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
+
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
-			return send_struct(current->sockfd,nick_sender,FILE_REJECT,infos,"") ;
+			return send_struct(current->sockfd,nick_sender,FILE_REJECT,infos,empty) ;
 		}
 		current=current->next;
     }
@@ -502,10 +620,12 @@ int file_accept(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN], cha
 
 int file_ack(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
+	char empty[MSG_LEN];
+	memset(empty,0,MSG_LEN);
 	//Send to user 
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0){
-			return send_struct(current->sockfd,nick_sender,FILE_ACK,infos,"") ;
+			return send_struct(current->sockfd,nick_sender,FILE_ACK,infos,empty) ;
 		}
 		current=current->next;
     }
@@ -545,8 +665,12 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 	}
 
 
-	//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 	
+	//KILL_SERVER
+	if (msgstruct.type == KILL_SERVER)
+		return kill_server(num_clients,fds,chaine_cli_head);
+
 	//ECHO_SEND
 	if (msgstruct.type == ECHO_SEND)
 		return echo_send(sockfd,num_clients,i,fds,msgstruct.type,msgstruct.infos,buff,chaine_cli_head);
@@ -564,9 +688,12 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 		return nickname_infos(sockfd,msgstruct.infos,*chaine_cli_head);
 	
 	//The client has no nickname yet
+	char empty[NICK_LEN];
+	memset(empty, 0, NICK_LEN);
+	
 	if (strcmp(msgstruct.nick_sender, "\0") == 0){
 		char buff[MSG_LEN]="please login with /nick <your pseudo>";
-		return send_struct(sockfd,"",NICKNAME_NEW,"",buff);
+		return send_struct(sockfd,empty,NICKNAME_NEW,empty,buff);
 	}
 
 	//BROADCAST_SEND
@@ -676,12 +803,16 @@ int main(int argc, char *argv[]) {
     fds[0].events = POLLIN;
 
 	struct Client * chaine_cli_head = NULL;
+	
 	struct Channel all_channel[MAX_CHANNEL];
+	
 	for (int i = 0; i < MAX_CHANNEL; i++) {
         all_channel[i].nbr_client = 0;  
 		all_channel[i].name = malloc(NICK_LEN*sizeof(char));     
     }
+
 	
+
 	while (1) {
         // Appel à poll pour attendre de nouveaux événements
         int active_fds = poll(fds, MAX_CONN, -1);
@@ -711,8 +842,15 @@ int main(int argc, char *argv[]) {
 				}
 				// Obtention du port du client
 				int client_port = ntohs(client_addr.sin_port);
+				
+				char empty[NICK_LEN];
+				memset(empty, 0, NICK_LEN);
 
-				if(send_struct(new_fd,"\0",NICKNAME_NEW,"\0","please login with /nick <your pseudo>")==0)
+				char BUFF[MSG_LEN];
+				memset(BUFF, 0, MSG_LEN);
+				strncpy(BUFF,"please login with /nick <your pseudo>",strlen("please login with /nick <your pseudo>")+1);
+				
+				if(send_struct(new_fd,empty,NICKNAME_NEW,empty,BUFF)==0)
 					exit(EXIT_FAILURE);
 
 				addClient(&chaine_cli_head,new_fd,client_addr);
@@ -738,21 +876,20 @@ int main(int argc, char *argv[]) {
                     perror("echo_server");
                     exit(EXIT_FAILURE);
                 }
+				//KILL SERVER
+				if (ret==2){
+                    // Libérez la mémoire pour tous les canaux
+					for (int i = 0; i < MAX_CHANNEL; i++) {
+						free(all_channel[i].name);
+					}
+					close(sfd);
+                    exit(EXIT_SUCCESS);
+                }
+
 				fds[i].revents=0;
             }
         }
     }
-    close(sfd);
-    return EXIT_SUCCESS;
+    exit(EXIT_FAILURE);
 }
-
-
-
-
-
-
-
-
-
-
 
