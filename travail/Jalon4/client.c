@@ -600,7 +600,8 @@ int help() {
     printf("/join <channel_name> - Join an existing channel\n");
     printf("/quit <channel_name> - Quit a channel\n");
     printf("/send <username> <file_path> - Send a file to a specific user\n");
-    printf("/help - Display this help message\n\n");
+    printf("/help - Display this help message\n");
+	printf("/kill_server - Stop the chat\n\n");
 	return 1;
 }
 

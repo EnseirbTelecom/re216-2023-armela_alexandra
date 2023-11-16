@@ -30,7 +30,7 @@ struct message {
 	char infos[INFOS_LEN];
 };
 
-static char* msg_type_str[] = {
+/*static char* msg_type_str[] = {
 	"NICKNAME_NEW",
 	"NICKNAME_LIST",
 	"NICKNAME_INFOS",
@@ -50,5 +50,5 @@ static char* msg_type_str[] = {
 	"FILE_ACK",
 	"HELP",
 	"KILL_SERVER"
-};
+}; */
 
