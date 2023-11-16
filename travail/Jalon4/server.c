@@ -219,10 +219,10 @@ int unicast_send(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char i
 	while (current!=NULL) {
 		if (strcmp(current->nickname, infos) == 0)
 			return send_struct(current->sockfd,nick_sender,type,infos,buff) ;
-			break;
 		current=current->next;
     }
-	return 1;
+
+	return send_struct(sockfd,"Server",type,infos, "Client doesn't exist");
 }
 
 int echo_send(int sockfd,int * num_clients,int i,struct pollfd * fds,enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN],struct Client ** chaine_cli_head){
@@ -518,7 +518,7 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 	}
 
 
-	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 	
 	//ECHO_SEND
 	if (msgstruct.type == ECHO_SEND)

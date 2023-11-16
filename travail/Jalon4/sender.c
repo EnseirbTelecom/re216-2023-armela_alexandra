@@ -62,16 +62,27 @@ int handle_connect(char* client_port,char* client_addr) {
 int send_file(int sockfd, const char *nick_sender, const char *infos) {
     struct message msgstruct;
 
-    int file_size = get_file_size(infos);
+    long long file_size = get_file_size(infos);
 
     // Filling structure
     msgstruct.pld_len = file_size;
+    printf("file size %lld \n",file_size);
     memset(msgstruct.nick_sender, 0, NICK_LEN);
     strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
     msgstruct.type = FILE_SEND;
     memset(msgstruct.infos, 0, INFOS_LEN);
     strncpy(msgstruct.infos, infos, strlen(infos));
 
+    // Définir un délai d'attente sur la socket
+    struct timeval timeout;
+    timeout.tv_sec = 10;  // 10 secondes, ajustez selon vos besoins
+    timeout.tv_usec = 0;
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        perror("Erreur lors de la configuration du délai d'attente de la socket");
+        return 1;
+    }
+    
     // Sending structure
     size_t totalStructBytesSent = 0;
     while (totalStructBytesSent < sizeof(msgstruct)) {
@@ -91,10 +102,11 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
     }
 
     char buffer[MSG_LEN];
-    memset(buffer, 0, MSG_LEN);
 	int nb_buff = file_size / MSG_LEN +1;
     
 	for (int i = 0; i < nb_buff; i++){
+        printf(" buffer n° %d, nb_buff %d\n",i,nb_buff);
+        memset(buffer, 0, MSG_LEN);
 		int bytesRead=0;
         int bytesToRead;
         if (i==nb_buff-1)

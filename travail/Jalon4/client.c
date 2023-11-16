@@ -75,7 +75,6 @@ int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char in
 int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
 	
-
 	if (infos== NULL){
 		printf("[Warning] : No space between /nick and <your pseudo> \n");
 		return 1;
@@ -84,24 +83,23 @@ int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	//Récupère le nouveau nickname
 	infos = strtok(NULL, "");
 	
-
 	if (infos== NULL){
 		printf("[Warning] : No nickname\n");
 		return 1;
 	}
 
 	char new_nickname[NICK_LEN];
+	memset(new_nickname, 0, NICK_LEN);
 	strncpy(new_nickname, infos, strlen(infos)-1);
 	int len_nickname=strlen(new_nickname);
 
-	
 	if ((len_nickname<3)||(len_nickname>127)){
-		printf("[Warning] : The new nickname size is incorrect; it should be between 3 and 127 characters.");
+		printf("[Warning] : The new nickname size is incorrect; it should be between 3 and 127 characters.\n");
 		return 1;
 	}
 
 	if (containsOnlyAlphanumeric(new_nickname)==0){
-		printf("[Warning] : The new nickname should only contain letters of the alphabet or numbers.");
+		printf("[Warning] : The new nickname should only contain letters of the alphabet or numbers.\n");
 		return 1;
 	}
 	return send_struct(sockfd_server,my_nickname,NICKNAME_NEW,new_nickname,"");
@@ -110,7 +108,7 @@ int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 
 int who(int sockfd_server,char my_nickname[NICK_LEN]){
 
-	if(send_struct(sockfd_server,my_nickname,NICKNAME_LIST,"\0","\0")==0)
+	if(send_struct(sockfd_server,my_nickname,NICKNAME_LIST,"","")==0)
 		return 0;
 			
 	return 1;
@@ -133,6 +131,7 @@ int whois(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	}
 
 	char nickname[NICK_LEN];
+	memset(nickname, 0, NICK_LEN);
 	strncpy(nickname, infos, strlen(infos)-1);
 	int len_nickname=strlen(nickname);
 
@@ -146,7 +145,7 @@ int whois(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		printf("[Warning] : The nickname should only contain letters of the alphabet or numbers.\n");
 		return 1;
 	}
-	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,"\0");
+	return send_struct(sockfd_server,my_nickname,NICKNAME_INFOS,nickname,"");
 		
 }
 
@@ -162,7 +161,7 @@ int msgall(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	infos = strtok(NULL, "");
 	char* msg=infos;
 	
-	return send_struct(sockfd_server,my_nickname,BROADCAST_SEND,"\0",msg);
+	return send_struct(sockfd_server,my_nickname,BROADCAST_SEND,"",msg);
 		
 }
 
@@ -183,7 +182,8 @@ int msg(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	}
 
 	char nickname[NICK_LEN];
-	strncpy(nickname, infos, strlen(infos)-1);
+	memset(nickname, 0, NICK_LEN);
+	strncpy(nickname, infos, strlen(infos));
 	int len_nickname=strlen(nickname);
 
 	//Verification du nickname (taille/alphanumérique)
@@ -228,6 +228,7 @@ int create(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 
 	// Infos stocke le nom du salon 
 	char new_chanel_name[NICK_LEN];
+	memset(new_chanel_name, 0, NICK_LEN);
 	strncpy(new_chanel_name, infos, strlen(infos)-1);
 	int len_new_chanel_name =  strlen(new_chanel_name);
 
@@ -271,6 +272,7 @@ int channel_members(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK
 	}
 
 	char chanel_name[NICK_LEN];
+	memset(chanel_name,0,NICK_LEN);
 	strncpy(chanel_name, infos, strlen(infos)-1);
 	int len_chanel_name =  strlen(chanel_name);
 
@@ -305,6 +307,7 @@ int join(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN]){
 	}
 
 	char new_chanel_name[NICK_LEN];
+	memset(new_chanel_name,0,NICK_LEN);
 	strncpy(new_chanel_name, infos, strlen(infos)-1);
 	int len_new_chanel_name =  strlen(new_chanel_name);
 
@@ -347,6 +350,7 @@ int quit(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN], char
 
 	// Infos stocke le nom du salon 
 	char chanel_name_quited[NICK_LEN];
+	memset(chanel_name_quited,0,NICK_LEN);
 	strncpy(chanel_name_quited, infos, strlen(infos)-1);
 	int len_chanel_name_quited =  strlen(chanel_name_quited);
 
@@ -381,8 +385,8 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 	}
 
 	char username[NICK_LEN];
+	memset(username,0,NICK_LEN);
 	strncpy(username, infos, strlen(infos));
-	strncpy(filename,infos, strlen(infos));
 	int len_username=strlen(username);
 
 	//Verification du username (taille/alphanumérique)
@@ -405,7 +409,9 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 	}
 	
 	char file_path[NICK_LEN];
+	memset(file_path,0,NICK_LEN);
 	strncpy(file_path, infos, strlen(infos)-1);
+	strncpy(filename,infos, strlen(infos)-1);
 	int len_file_path=strlen(file_path);
 
 	//Verification du file_path (taille/alphanumérique)
@@ -414,11 +420,10 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 		return 1;
 	}
 
-	// Vérification que file_path se termine par ".txt"
-	if (strstr(file_path, ".txt") == NULL) {
-		printf("[Warning] : The file_path doesn't finish by \".txt\"\n");
+	if (access(file_path, F_OK) == -1) {
+        printf("[Warning] : File doesn't exist.\n");
 		return 1;
-	}
+    } 
 
 	return send_struct(sockfd_server,my_nickname,FILE_REQUEST,username,file_path);
 }
@@ -449,9 +454,10 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
 	char port[strlen(infos)];
 	memset(port, 0, strlen(infos));
 	strncpy(port, infos, strlen(infos));
+	printf("fichier : %s  %lu \n", file_path,strlen(file_path));
 
 
-	char*args[6]={"sender",ipaddr,port,my_nickname,"fichier.txt",NULL};
+	char*args[6]={"sender",ipaddr,port,my_nickname,file_path,NULL};
     
 
 	int fils=-1;
@@ -470,10 +476,7 @@ int file_accept(char nickname_recv[NICK_LEN],char buff[MSG_LEN],char my_nickname
 
 	return 1;			
 }
-
-			
-			
-
+	
 //FILE_ANSWER
 int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[NICK_LEN],char username[NICK_LEN]){
 	while (1) {
@@ -526,7 +529,7 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 				
 				printf("\n [Info] : File reception complete \n");
 
-				return 1;				
+				return 1;			
 			}
 			
 			if (strncmp(buff, "N", strlen("N"))==0){
@@ -750,7 +753,9 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		//FILE_REQUEST
 		if (msgstruct.type == FILE_REQUEST){
 			printf("[Server] : %s wants you to accept the transfer of the file named \"%s\". \nDo you accept? [Y/N]\n",msgstruct.nick_sender,buff);
-			return send_answer(sockfd_server,fds,my_nickname,msgstruct.nick_sender);
+			if (send_answer(sockfd_server,fds,my_nickname,msgstruct.nick_sender)==0)
+				return 0;
+			
 		}
 
 		//FILE_REJECT
@@ -768,7 +773,8 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 
 		//FILE_ACK
 		if (msgstruct.type == FILE_ACK){
-			printf("[Server] : %s has received the file.\n",msgstruct.nick_sender);
+			filename="";
+			printf("[INFOS] : %s has received the file.\n",msgstruct.nick_sender);
 			return 1;		
 		}
 
@@ -806,7 +812,6 @@ int handle_connect(char* client_port,char* client_addr) {
 }
 
 int main(int argc, char *argv[]) {
-	
 	if (argc != 3) {
         fprintf(stderr, "Usage: %s <server_name> <server_port>\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -840,6 +845,7 @@ int main(int argc, char *argv[]) {
 	help();
 
 
+
 	while (1) {
         // Appel à poll pour attendre de nouveaux événements
         int active_fds = poll(fds, CONN_CLI, -1);
@@ -856,6 +862,17 @@ int main(int argc, char *argv[]) {
 				perror("echo_client");
 				exit(EXIT_FAILURE);
 			}
+
+			if (strlen(my_salon)>0){
+				printf("[%s]",my_salon);
+			}
+
+			if (strlen(my_nickname)>0){
+				printf("[%s]",my_nickname);
+			}
+			
+			printf(">");
+			fflush(stdout);
 		}
 
 		//si il y a de l'activité sur la socket de l'entrée standard
@@ -865,6 +882,17 @@ int main(int argc, char *argv[]) {
 				perror("echo_client");
 				exit(EXIT_FAILURE);
 			}
+			if (strlen(my_salon)>0){
+				printf("[%s]",my_salon);
+			}
+
+			if (strlen(my_nickname)>0){
+				printf("[%s]",my_nickname);
+			}
+			
+			printf(">");
+			fflush(stdout);
+
 			
 		}
 	 }

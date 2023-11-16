@@ -52,7 +52,6 @@ int received_file(int sockfd){
 
 	// Cleaning memory
 	memset(&msgstruct, 0, sizeof(struct message));
-	memset(buff, 0, MSG_LEN);
 
 	// Receiving structure
 	size_t totalStructBytesReceived = 0;
@@ -65,7 +64,7 @@ int received_file(int sockfd){
 		totalStructBytesReceived += structBytesReceived;
 	}
 
-	printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+	//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 	
 	char repo[INFOS_LEN]="inbox/";
 	strcat(repo, msgstruct.infos);
@@ -78,6 +77,8 @@ int received_file(int sockfd){
 	int nb_buff = msgstruct.pld_len / MSG_LEN +1;
 
 	for (int i = 0; i < nb_buff; i++){
+		memset(buff, 0, MSG_LEN);
+		printf(" buffer n° %d\n",i);
         int totalMsgBytesReceived=0;
         int bytesToRecv;
         if (i==nb_buff-1)
@@ -98,7 +99,7 @@ int received_file(int sockfd){
 		while (bytesWrite <bytesToRecv ) {
 			int offset=write(fd, buff, bytesToRecv);
 			if (offset<=0){
-				perror("Erreur lors de la lecture buff");
+				perror("Erreur lors de l'écriture buff");
 				return 0;  // Ou prendre d'autres mesures en cas d'échec d'envoi
 			}
 			lseek(fd, offset, SEEK_CUR);
