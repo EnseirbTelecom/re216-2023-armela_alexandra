@@ -18,10 +18,8 @@
 #include "common.h"
 #include "msg_struct.h"
 
-//Verifier que le fichier existe !
-
 int containsOnlyAlphanumeric(char str[]) {
-    for (int i = 0; i < strlen(str)-1; i++)
+    for (int i = 0; i < strlen(str); i++)
 	{
 		//Un caractère n'est ni un chiffre ni une lettre
 		if(!isalpha(str[i])&&!isdigit(str[i]))
@@ -31,7 +29,7 @@ int containsOnlyAlphanumeric(char str[]) {
     return 1; 
 }
 
-//Envoyer une structure
+//Sending a struct
 int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char infos[INFOS_LEN],char buff[MSG_LEN]){
 	struct message msgstruct;
 
@@ -71,7 +69,7 @@ int send_struct(int sockfd,char nick_sender[NICK_LEN],enum msg_type type,char in
 	return 1;
 }
 
-// FONCTIONS POUR LE TRAITEMENT D'INFORMATIONS AU CLAVIER
+// FUNCTIONS FOR KEYBOARD INPUT PROCESSING
 int nick(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 	char *infos = strtok(buff, " ");
 	
@@ -210,7 +208,7 @@ int msg(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 }
 
 // MULTICAST_CREATE
-int create(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
+int create(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN], char* my_salon){
 	char *infos = strtok(buff, " ");
 
 	if (infos== NULL){
@@ -241,6 +239,11 @@ int create(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]){
 		printf("[Warning] : The new chanel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
+	if (strlen(my_salon)!=0){
+		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,"")==0)
+			return 0;	
+	}
+	
 	return send_struct(sockfd_server,my_nickname,MULTICAST_CREATE,new_chanel_name,"");
 	
 }
@@ -290,7 +293,7 @@ int channel_members(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK
 }
 
 //MULTICAST_JOIN 
-int join(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN]){
+int join(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN],char* my_salon){
 	char *infos = strtok(buff, " ");
 
 	if (infos== NULL){
@@ -320,6 +323,11 @@ int join(char buff[MSG_LEN], int sockfd_server, char my_nickname[NICK_LEN]){
 		printf("[Warning] : The channel name should only contain letters of the alphabet or numbers.");
 		return 1;
 	}
+	if (strlen(my_salon)!=0){
+		if (send_struct(sockfd_server,my_nickname,MULTICAST_QUIT,my_salon,"")==0)
+			return 0;	
+	}
+
 	return send_struct(sockfd_server,my_nickname,MULTICAST_JOIN,new_chanel_name,"");
 	
 }
@@ -388,6 +396,13 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 	memset(username,0,NICK_LEN);
 	strncpy(username, infos, strlen(infos));
 	int len_username=strlen(username);
+
+	//Client want to send a file to himself
+	if (strcmp(my_nickname, username)==0){
+		printf("[Warning] : Sending a file to himself is not possible.\n");
+		return 1;
+	}
+	
 
 	//Verification du username (taille/alphanumérique)
 	if ((len_username<3)||(len_username>127)){
@@ -526,10 +541,9 @@ int send_answer(int sockfd_server,struct pollfd fds[CONN_CLI],char my_nickname[N
 
 				}
 				
-				
-				printf("\n [Info] : File reception complete \n");
+				printf("\n [INFOS] : File reception complete \n");
 
-				return 1;			
+				return send_struct(sockfd_server,my_nickname,FILE_ACK,username,"");		
 			}
 			
 			if (strncmp(buff, "N", strlen("N"))==0){
@@ -554,7 +568,7 @@ int help() {
     printf("/join <channel_name> - Join an existing channel\n");
     printf("/quit <channel_name> - Quit a channel\n");
     printf("/send <username> <file_path> - Send a file to a specific user\n");
-    printf("/help - Display this help message\n");
+    printf("/help - Display this help message\n\n");
 	return 1;
 }
 
@@ -600,7 +614,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 
 		//MULTICAST_CREATE 
 		if (strncmp(buff, "/create ", strlen("/create "))==0)
-			return create(buff,sockfd_server,my_nickname);
+			return create(buff,sockfd_server,my_nickname,my_salon);
 
 		//MULTICAST_LIST
 		if (strncmp(buff, "/channel_list", strlen("/channel_list"))==0)
@@ -612,7 +626,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		
 		//MULTICAST_JOIN
 		if (strncmp(buff, "/join ", strlen("/join "))==0)
-			return join(buff,sockfd_server,my_nickname);
+			return join(buff,sockfd_server,my_nickname,my_salon);
 
 		//FILE_REQUEST
 		if (strncmp(buff, "/send ", strlen("/send "))==0)
@@ -663,12 +677,13 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		}
 
 
-		printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n ", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
+		//printf("pld_len: %i / nick_sender: %s / type: %s / infos: %s\n\n ", msgstruct.pld_len, msgstruct.nick_sender, msg_type_str[msgstruct.type], msgstruct.infos);
 		
 
 		//NICKNAME_NEW
 		if (msgstruct.type == NICKNAME_NEW){
 			printf("[Server]: %s \n", buff);
+			memset(my_nickname,0,strlen(my_nickname));
 			strncpy(my_nickname, msgstruct.infos, strlen(msgstruct.infos));
 			return 1;
 		}
@@ -682,7 +697,6 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 		//NICKNAME_INFOS
 		if (msgstruct.type ==NICKNAME_INFOS){
 			printf("[Server]: %s %s\n",msgstruct.infos,buff);
-			printf("%lu",strlen(msgstruct.infos));
 			return 1;
 		}
 			
@@ -740,13 +754,18 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 
 		//MULTICAST_MEMBERS
 		if (msgstruct.type ==MULTICAST_MEMBERS){
+			if (strlen(buff)==0){
+				printf("[Server]: Channel doesn't exist\n");
+				return 1;
+			}
+			
 			printf("[Server]: Members of channel %s are : \n%s\n",msgstruct.infos,buff);
 			return 1;
 		}
 
 		//MULTICAST_SEND
 		if (msgstruct.type ==MULTICAST_SEND){
-			printf("[%s] [%s] : %s\n",my_salon, msgstruct.nick_sender,buff);
+			printf("[%s] : %s\n", msgstruct.nick_sender,buff);
 			return 1;
 		}
 
@@ -755,7 +774,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 			printf("[Server] : %s wants you to accept the transfer of the file named \"%s\". \nDo you accept? [Y/N]\n",msgstruct.nick_sender,buff);
 			if (send_answer(sockfd_server,fds,my_nickname,msgstruct.nick_sender)==0)
 				return 0;
-			
+			return 1;
 		}
 
 		//FILE_REJECT
@@ -773,7 +792,7 @@ int echo_client(struct pollfd fds[CONN_CLI],int sockfd_active,int sockfd_server,
 
 		//FILE_ACK
 		if (msgstruct.type == FILE_ACK){
-			filename="";
+			memset(filename,0,strlen(filename));
 			printf("[INFOS] : %s has received the file.\n",msgstruct.nick_sender);
 			return 1;		
 		}
@@ -863,6 +882,7 @@ int main(int argc, char *argv[]) {
 				exit(EXIT_FAILURE);
 			}
 
+			printf("\n");
 			if (strlen(my_salon)>0){
 				printf("[%s]",my_salon);
 			}
@@ -882,6 +902,7 @@ int main(int argc, char *argv[]) {
 				perror("echo_client");
 				exit(EXIT_FAILURE);
 			}
+			printf("\n");
 			if (strlen(my_salon)>0){
 				printf("[%s]",my_salon);
 			}

@@ -115,19 +115,19 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
             bytesToRead=MSG_LEN;
 
 		while (bytesRead < bytesToRead ) {
-			int offset=read(fd, buffer, bytesToRead);
+			int offset=read(fd, buffer+bytesRead, bytesToRead- bytesRead);
 			if (offset<=0){
 				perror("Erreur lors de la lecture buff");
 				return 1;  // Ou prendre d'autres mesures en cas d'échec d'envoi
 			}
 			
-			lseek(fd, offset, SEEK_CUR);
+			//lseek(fd, offset, SEEK_CUR);
 			bytesRead+=offset;
 		}
 
 		size_t totalBytesSent = 0;
 		while (totalBytesSent < bytesToRead) {
-			ssize_t bytesSent = send(sockfd, buffer + totalBytesSent, msgstruct.pld_len - totalBytesSent, 0);
+			ssize_t bytesSent = send(sockfd, buffer + totalBytesSent, bytesRead - totalBytesSent, 0);
 			if (bytesSent <= 0) {
 				perror("Erreur lors de l'envoi du champ buff");
 				return 1;  

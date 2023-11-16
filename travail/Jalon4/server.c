@@ -83,6 +83,34 @@ void disp_chaine(struct Client * chaine_cli_head){
 	}
 }
 
+void addClient(struct Client** chaine_cli_head, int new_fd,struct sockaddr_in client_addr){
+	//Création de la nouvelle structure client 
+	struct Client *new_client=(struct Client*)malloc(sizeof(struct Client));
+	
+	new_client->sockfd=new_fd;
+	new_client->addr=client_addr.sin_addr;
+	new_client->port=client_addr.sin_port;
+	new_client->connectionTime = time(NULL);
+	new_client->nickname=malloc(NICK_LEN*sizeof(char));
+	new_client->salon=malloc(NICK_LEN*sizeof(char));
+	new_client->i_salon=-1;
+    new_client->next=NULL;
+
+	//First Client
+	if (*chaine_cli_head == NULL) {
+		*chaine_cli_head = new_client;
+					
+	} 
+	else {
+		struct Client *current = *chaine_cli_head;
+		while (current->next != NULL) {
+			current = current->next;
+		}
+		current->next = new_client;
+	}
+
+}
+
 void removeClient(struct Client** head, int sockfd) {
     struct Client* current = *head;
     struct Client* prev = NULL;
@@ -443,7 +471,7 @@ int file_request(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],cha
 		}	
 		current=current->next;
     }
-	return 1;
+	return send_struct(sockfd,"",ECHO_SEND,"","Client doesn't exist.") ;
 }
 
 int file_reject(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
@@ -474,12 +502,11 @@ int file_accept(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN], cha
 
 int file_ack(int sockfd,char nick_sender[NICK_LEN],char infos[INFOS_LEN],struct Client * chaine_cli_head){
 	struct Client * current=chaine_cli_head;
-
 	//Send to user 
 	while (current!=NULL) {
-		if (strcmp(current->nickname, infos) == 0)
+		if (strcmp(current->nickname, infos) == 0){
 			return send_struct(current->sockfd,nick_sender,FILE_ACK,infos,"") ;
-			break;
+		}
 		current=current->next;
     }
 	return 1;
@@ -539,7 +566,7 @@ int echo_server(int* num_clients,struct pollfd * fds,int i,struct Client ** chai
 	//The client has no nickname yet
 	if (strcmp(msgstruct.nick_sender, "\0") == 0){
 		char buff[MSG_LEN]="please login with /nick <your pseudo>";
-		return send_struct(sockfd,"\0",NICKNAME_NEW,"/0",buff);
+		return send_struct(sockfd,"",NICKNAME_NEW,"",buff);
 	}
 
 	//BROADCAST_SEND
@@ -649,7 +676,6 @@ int main(int argc, char *argv[]) {
     fds[0].events = POLLIN;
 
 	struct Client * chaine_cli_head = NULL;
-
 	struct Channel all_channel[MAX_CHANNEL];
 	for (int i = 0; i < MAX_CHANNEL; i++) {
         all_channel[i].nbr_client = 0;  
@@ -683,41 +709,13 @@ int main(int argc, char *argv[]) {
 					perror("inet_ntop");
 					exit(EXIT_FAILURE);
 				}
-
 				// Obtention du port du client
 				int client_port = ntohs(client_addr.sin_port);
 
-				//Création de la nouvelle structure client 
-				struct Client *new_client=(struct Client*)malloc(sizeof(struct Client));
-				if (new_client == NULL) {
-					fprintf(stderr, "Erreur d'allocation mémoire pour le client.\n");
-					return EXIT_FAILURE;
-				}
-				new_client->sockfd=new_fd;
-				new_client->addr=client_addr.sin_addr;
-				new_client->port=client_addr.sin_port;
-				new_client->connectionTime = time(NULL);
-				new_client->nickname=malloc(NICK_LEN*sizeof(char));
-				new_client->salon=malloc(NICK_LEN*sizeof(char));
-				new_client->i_salon=-1;
-                new_client->next=NULL;
-
-				char buff[MSG_LEN]="please login with /nick <your pseudo>";
-				if(send_struct(new_fd,"\0",NICKNAME_NEW,"\0",buff)==0)
+				if(send_struct(new_fd,"\0",NICKNAME_NEW,"\0","please login with /nick <your pseudo>")==0)
 					exit(EXIT_FAILURE);
 
-				//First Client
-				if (chaine_cli_head == NULL) {
-					chaine_cli_head = new_client;
-					
-				} 
-				else {
-					struct Client *current = chaine_cli_head;
-					while (current->next != NULL) {
-						current = current->next;
-					}
-					current->next = new_client;
-				}
+				addClient(&chaine_cli_head,new_fd,client_addr);
 				
 				printf("New connection from %s:%d (client n°%d) on socket %d\n", client_ip, client_port,num_clients,new_fd);
 
@@ -729,13 +727,12 @@ int main(int argc, char *argv[]) {
 						break;
                     }
                 }
-
 				fds[i].revents = 0;
             }
 
             // S'il y a de l'activité sur un socket autre que listen_fd, lire les données
             if (fds[i].fd != sfd && (fds[i].revents & POLLIN) == POLLIN) {
-                printf("Activity on socket %d\n", fds[i].fd);
+                printf("\nActivity on socket %d\n", fds[i].fd);
 				int ret=echo_server(&num_clients,fds,i,&chaine_cli_head,all_channel)  ;
 				if (ret==0){
                     perror("echo_server");
@@ -745,7 +742,6 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-
     close(sfd);
     return EXIT_SUCCESS;
 }

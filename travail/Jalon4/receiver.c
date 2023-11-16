@@ -68,7 +68,7 @@ int received_file(int sockfd){
 	
 	char repo[INFOS_LEN]="inbox/";
 	strcat(repo, msgstruct.infos);
-    int fd=open(repo, O_RDWR|O_CREAT,S_IRWXU);
+    int fd=open(repo, O_RDWR|O_CREAT | O_TRUNC,S_IRWXU);
     if (fd == -1) {
         perror("Erreur lors de l'ouverture du fichier");
         return 0;
@@ -78,7 +78,6 @@ int received_file(int sockfd){
 
 	for (int i = 0; i < nb_buff; i++){
 		memset(buff, 0, MSG_LEN);
-		printf(" buffer n° %d\n",i);
         int totalMsgBytesReceived=0;
         int bytesToRecv;
         if (i==nb_buff-1)
@@ -97,12 +96,12 @@ int received_file(int sockfd){
 
 		int bytesWrite=0;
 		while (bytesWrite <bytesToRecv ) {
-			int offset=write(fd, buff, bytesToRecv);
+			int offset=write(fd, buff+bytesWrite, bytesToRecv-bytesWrite);
 			if (offset<=0){
 				perror("Erreur lors de l'écriture buff");
 				return 0;  // Ou prendre d'autres mesures en cas d'échec d'envoi
 			}
-			lseek(fd, offset, SEEK_CUR);
+			//lseek(fd, offset, SEEK_CUR);
 			bytesWrite+=offset;
 		}
         
