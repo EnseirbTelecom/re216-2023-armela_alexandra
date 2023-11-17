@@ -59,10 +59,21 @@ int handle_connect(char* client_port,char* client_addr) {
 	return sfd;
 }
 
-int send_file(int sockfd, const char *nick_sender, const char *infos) {
+int send_file(int sockfd, const char *nick_sender, char *infos) {
     struct message msgstruct;
 
     long long file_size = get_file_size(infos);
+    
+    // Trouver la dernière occurrence du caractère '/' dans la chaîne
+    char *lastSlash = strrchr(infos, '/');
+
+    // Si le caractère '/' est trouvé, avancez d'une position pour obtenir le nom du fichier
+    if (lastSlash != NULL) {
+        lastSlash++;  // Avance d'une position après '/'
+    } else {
+        // Si le caractère '/' n'est pas trouvé, utilisez la chaîne entière
+        lastSlash = infos;
+    }
 
     // Filling structure
     msgstruct.pld_len = file_size;
@@ -71,7 +82,7 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
     strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
     msgstruct.type = FILE_SEND;
     memset(msgstruct.infos, 0, INFOS_LEN);
-    strncpy(msgstruct.infos, infos, strlen(infos));
+    strncpy(msgstruct.infos, lastSlash, strlen(lastSlash));
 
     // Définir un délai d'attente sur la socket
     struct timeval timeout;

@@ -68,7 +68,8 @@ int received_file(int sockfd){
 	
 	char repo[INFOS_LEN]="inbox/";
 	strcat(repo, msgstruct.infos);
-    int fd=open(repo, O_RDWR|O_CREAT | O_TRUNC,S_IRWXU);
+	printf("repo :%s\n",repo);
+    int fd=open(repo, O_RDWR|O_CREAT|O_TRUNC,S_IRWXU);
     if (fd == -1) {
         perror("Erreur lors de l'ouverture du fichier");
         return 0;

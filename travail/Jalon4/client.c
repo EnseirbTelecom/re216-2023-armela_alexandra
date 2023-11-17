@@ -447,11 +447,23 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 		printf("[Warning] : No file_path\n");
 		return 1;
 	}
-	
+
+	strncpy(filename,infos, strlen(infos)-1);
+
+	// Trouver la dernière occurrence du caractère '/' dans la chaîne
+    char *lastSlash = strrchr(infos, '/');
+
+    // Si le caractère '/' est trouvé, avancez d'une position pour obtenir le nom du fichier
+    if (lastSlash != NULL) {
+        lastSlash++;  // Avance d'une position après '/'
+    } else {
+        // Si le caractère '/' n'est pas trouvé, utilisez la chaîne entière
+        lastSlash = infos;
+    }
+
 	char file_path[NICK_LEN];
 	memset(file_path,0,NICK_LEN);
-	strncpy(file_path, infos, strlen(infos)-1);
-	strncpy(filename,infos, strlen(infos)-1);
+	strncpy(file_path, lastSlash, strlen(lastSlash)-1);
 	int len_file_path=strlen(file_path);
 
 	//Verification du file_path (taille/alphanumérique)
@@ -460,7 +472,7 @@ int file_request(char buff[MSG_LEN],int sockfd_server,char my_nickname[NICK_LEN]
 		return 1;
 	}
 
-	if (access(file_path, F_OK) == -1) {
+	if (access(filename, F_OK) == -1) {
         printf("[Warning] : File doesn't exist.\n");
 		return 1;
     } 

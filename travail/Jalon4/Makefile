@@ -1,8 +1,8 @@
 # Liste des fichiers source
-SOURCES = test.c client.c server.c receiver.c sender.c
+SOURCES = client.c server.c receiver.c sender.c
 
 # Cibles à construire (exécutables)
-TARGETS = test client server receiver sender
+TARGETS = client server receiver sender 
 
 # Options de compilation
 CFLAGS = -Wall
@@ -12,8 +12,9 @@ PORT = 8080
 HOST = 127.0.0.1
 PORT2 = 8888
 HOST2 = 127.0.0.1
-NAME = papa
-FILE = "fichier.txt"
+
+# Dossier Inbox
+INBOX_FOLDER = inbox
 
 # Règle par défaut
 all: $(TARGETS)
@@ -29,13 +30,9 @@ run-client: client
 run-server: server
 	./server $(PORT)
 
-run-sender: sender
-	./sender $(HOST2) $(PORT2) $(NAME) $(FILE)
-
-run-receiver : receiver
-	./receiver $(PORT2) 
 # Nettoyage
 clean:
 	rm -f $(TARGETS)
+	rm -rf $(INBOX_FOLDER)/*
 
 .PHONY: all run-client run-server clean
