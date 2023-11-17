@@ -16,6 +16,7 @@
 #include "common.h"
 #include "msg_struct.h"
 
+// AUXILIARY FUNCTIONS
 long long get_file_size(const char *filename) {
     FILE *file = fopen(filename, "rb"); // Ouvrir le fichier en mode lecture binaire
     if (file == NULL) {
@@ -30,7 +31,7 @@ long long get_file_size(const char *filename) {
     return size;
 }
 
-
+// CONNEXION
 int handle_connect(char* client_port,char* client_addr) {
 	struct addrinfo hints, *result, *rp;
 	int sfd;
@@ -59,23 +60,30 @@ int handle_connect(char* client_port,char* client_addr) {
 	return sfd;
 }
 
-int send_file(int sockfd, const char *nick_sender, const char *infos) {
+int send_file(int sockfd, const char *nick_sender, char *infos) {
     struct message msgstruct;
 
     long long file_size = get_file_size(infos);
+    
+    char *lastSlash = strrchr(infos, '/');
+    // If the '/' character is found, advance one position to obtain the file name
+    if (lastSlash != NULL) {
+        lastSlash++; 
+    } else {
+        lastSlash = infos;
+    }
 
     // Filling structure
     msgstruct.pld_len = file_size;
-    printf("file size %lld \n",file_size);
     memset(msgstruct.nick_sender, 0, NICK_LEN);
     strncpy(msgstruct.nick_sender, nick_sender, strlen(nick_sender));
     msgstruct.type = FILE_SEND;
     memset(msgstruct.infos, 0, INFOS_LEN);
-    strncpy(msgstruct.infos, infos, strlen(infos));
+    strncpy(msgstruct.infos, lastSlash, strlen(lastSlash));
 
-    // Définir un délai d'attente sur la socket
+    // Set a socket timeout
     struct timeval timeout;
-    timeout.tv_sec = 10;  // 10 secondes, ajustez selon vos besoins
+    timeout.tv_sec = 10;  
     timeout.tv_usec = 0;
 
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
@@ -89,7 +97,7 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
         ssize_t structBytesSent = send(sockfd, ((char *)&msgstruct) + totalStructBytesSent, sizeof(msgstruct) - totalStructBytesSent, 0);
         if (structBytesSent <= 0) {
             perror("Erreur lors de l'envoi de la structure");
-            return 1; // Ou prendre d'autres mesures en cas d'échec d'envoi
+            return 1; 
         }
         totalStructBytesSent += structBytesSent;
     }
@@ -105,7 +113,6 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
 	int nb_buff = file_size / MSG_LEN +1;
     
 	for (int i = 0; i < nb_buff; i++){
-        printf(" buffer n° %d, nb_buff %d\n",i,nb_buff);
         memset(buffer, 0, MSG_LEN);
 		int bytesRead=0;
         int bytesToRead;
@@ -118,10 +125,8 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
 			int offset=read(fd, buffer+bytesRead, bytesToRead- bytesRead);
 			if (offset<=0){
 				perror("Erreur lors de la lecture buff");
-				return 1;  // Ou prendre d'autres mesures en cas d'échec d'envoi
+				return 1;  
 			}
-			
-			//lseek(fd, offset, SEEK_CUR);
 			bytesRead+=offset;
 		}
 
@@ -136,7 +141,7 @@ int send_file(int sockfd, const char *nick_sender, const char *infos) {
 		}
 	}
     close(fd);
-    return 1; // Succès
+    return 1; // Succes
 }
 
 int main(int argc, char *argv[]){
